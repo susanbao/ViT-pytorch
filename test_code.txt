@@ -1,0 +1,1 @@
+CUDA_VISIBALE_DEVICES=1 python3 train_at.py --name ViT-train-with-test --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/

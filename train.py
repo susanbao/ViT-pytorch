@@ -21,6 +21,7 @@ from models.modeling import VisionTransformer, CONFIGS
 from utils.scheduler import WarmupLinearSchedule, WarmupCosineSchedule
 from utils.data_utils import get_loader
 from utils.dist_util import get_world_size
+import ipdb
 
 
 logger = logging.getLogger(__name__)
@@ -139,6 +140,7 @@ def valid(args, model, writer, test_loader, global_step):
 
 
 def train(args, model):
+    ipdb.set_trace()
     """ Train the model """
     if args.local_rank in [-1, 0]:
         os.makedirs(args.output_dir, exist_ok=True)
