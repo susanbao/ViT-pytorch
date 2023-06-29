@@ -271,6 +271,7 @@ class ActiveTestVisionTransformer(nn.Module):
     def forward(self, x, labels=None):
         x, attn_weights = self.transformer(x)
         estimates = self.head(x[:, 0])
+        estimates = estimates.reshape(estimates.shape[0])
         if labels is not None:
             loss = self.loss_function(estimates, labels)
             return loss

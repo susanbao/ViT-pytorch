@@ -22,6 +22,7 @@ from utils.scheduler import WarmupLinearSchedule, WarmupCosineSchedule
 from utils.data_utils_at import get_loader_at
 from utils.dist_util import get_world_size
 import ipdb
+import json
 
 
 logger = logging.getLogger(__name__)
@@ -84,6 +85,9 @@ def set_seed(args):
     if args.n_gpu > 0:
         torch.cuda.manual_seed_all(args.seed)
 
+def write_one_results(path, json_data):
+    with open(path, "w") as outfile:
+        json.dump(json_data, outfile)        
 
 def valid(args, model, writer, test_loader, global_step):
     # Validation!
@@ -94,13 +98,13 @@ def valid(args, model, writer, test_loader, global_step):
     logger.info("  Batch size = %d", args.eval_batch_size)
 
     model.eval()
-    all_preds, all_label = [], []
+    all_preds = []
     epoch_iterator = tqdm(test_loader,
                           desc="Validating... (loss=X.X)",
                           bar_format="{l_bar}{r_bar}",
                           dynamic_ncols=True,
                           disable=args.local_rank not in [-1, 0])
-    loss_fct = torch.nn.CrossEntropyLoss()
+    loss_fct = torch.nn.MSELoss(reduction='mean')
     for step, batch in enumerate(epoch_iterator):
         batch = tuple(t.to(args.device) for t in batch)
         x, y = batch
@@ -109,32 +113,17 @@ def valid(args, model, writer, test_loader, global_step):
 
             eval_loss = loss_fct(logits, y)
             eval_losses.update(eval_loss.item())
+            all_preds.extend(logits.tolist())
 
-            preds = torch.argmax(logits, dim=-1)
-
-        if len(all_preds) == 0:
-            all_preds.append(preds.detach().cpu().numpy())
-            all_label.append(y.detach().cpu().numpy())
-        else:
-            all_preds[0] = np.append(
-                all_preds[0], preds.detach().cpu().numpy(), axis=0
-            )
-            all_label[0] = np.append(
-                all_label[0], y.detach().cpu().numpy(), axis=0
-            )
         epoch_iterator.set_description("Validating... (loss=%2.5f)" % eval_losses.val)
-
-    all_preds, all_label = all_preds[0], all_label[0]
-    accuracy = simple_accuracy(all_preds, all_label)
 
     logger.info("\n")
     logger.info("Validation Results")
     logger.info("Global Steps: %d" % global_step)
     logger.info("Valid Loss: %2.5f" % eval_losses.avg)
-    logger.info("Valid Accuracy: %2.5f" % accuracy)
 
-    writer.add_scalar("test/accuracy", scalar_value=accuracy, global_step=global_step)
-    return accuracy
+    writer.add_scalar("test/loss", scalar_value=eval_losses.avg, global_step=global_step)
+    return eval_losses.avg, all_preds
 
 
 def train(args, model):
@@ -221,10 +210,13 @@ def train(args, model):
                     writer.add_scalar("train/loss", scalar_value=losses.val, global_step=global_step)
                     writer.add_scalar("train/lr", scalar_value=scheduler.get_lr()[0], global_step=global_step)
                 if global_step % args.eval_every == 0 and args.local_rank in [-1, 0]:
-                    accuracy = valid(args, model, writer, test_loader, global_step)
+                    accuracy, all_preds = valid(args, model, writer, test_loader, global_step)
                     if best_acc < accuracy:
                         save_model(args, model)
                         best_acc = accuracy
+                        path = os.path.join(args.output_dir, "%s_losses.json" % args.name)
+                        json_objects = {"losses": all_preds}
+                        write_one_results(path, json_objects)
                     model.train()
 
                 if global_step % t_total == 0:
@@ -261,7 +253,7 @@ def main():
                         help="Total batch size for training.")
     parser.add_argument("--eval_batch_size", default=64, type=int,
                         help="Total batch size for eval.")
-    parser.add_argument("--eval_every", default=100, type=int,
+    parser.add_argument("--eval_every", default=400, type=int,
                         help="Run prediction on validation set every so many steps."
                              "Will always run one evaluation at the end of training.")
 
