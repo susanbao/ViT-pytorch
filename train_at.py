@@ -62,7 +62,7 @@ def setup(args):
     config = CONFIGS[args.model_type]
 
     model = ActiveTestVisionTransformer(config)
-    model.load_from(np.load(args.pretrained_dir))
+    model.load_from(np.load(args.pretrained_dir), requires_grad = False)
     model.to(args.device)
     num_params = count_parameters(model)
 
@@ -171,7 +171,7 @@ def train(args, model):
     model.zero_grad()
     set_seed(args)  # Added here for reproducibility (even between python 2 and 3)
     losses = AverageMeter()
-    global_step, best_acc = 0, 0
+    global_step, best_acc = 0, 100000
     while True:
         model.train()
         epoch_iterator = tqdm(train_loader,
@@ -211,7 +211,7 @@ def train(args, model):
                     writer.add_scalar("train/lr", scalar_value=scheduler.get_lr()[0], global_step=global_step)
                 if global_step % args.eval_every == 0 and args.local_rank in [-1, 0]:
                     accuracy, all_preds = valid(args, model, writer, test_loader, global_step)
-                    if best_acc < accuracy:
+                    if best_acc > accuracy:
                         save_model(args, model)
                         best_acc = accuracy
                         path = os.path.join(args.output_dir, "%s_losses.json" % args.name)

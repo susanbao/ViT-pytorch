@@ -1,1 +1,3 @@
 CUDA_VISIBALE_DEVICES=1 python3 train_at.py --name ViT-train-with-test --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/
+
+CUDA_VISIBALE_DEVICES=0 python3 train_at.py --name ViT-train-with-test_retrain --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ >logs/ViT-train-with-test_retrain.logs 2>logs/ViT-train-with-test_retrain.err&
