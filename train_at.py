@@ -23,6 +23,8 @@ from utils.data_utils_at import get_loader_at
 from utils.dist_util import get_world_size
 import ipdb
 import json
+import wandb
+import socket
 
 
 logger = logging.getLogger(__name__)
@@ -62,7 +64,7 @@ def setup(args):
     config = CONFIGS[args.model_type]
 
     model = ActiveTestVisionTransformer(config)
-    model.load_from(np.load(args.pretrained_dir), requires_grad = False)
+    model.load_from(np.load(args.pretrained_dir), requires_grad = args.encoder_weight_train)
     model.to(args.device)
     num_params = count_parameters(model)
 
@@ -158,6 +160,8 @@ def train(args, model):
     # Distributed training
     if args.local_rank != -1:
         model = DDP(model, message_size=250000000, gradient_predivide_factor=get_world_size())
+    
+    wandb.watch(model, log="all")
 
     # Train!
     logger.info("***** Running training *****")
@@ -172,6 +176,7 @@ def train(args, model):
     set_seed(args)  # Added here for reproducibility (even between python 2 and 3)
     losses = AverageMeter()
     global_step, best_acc = 0, 100000
+    accuracy = 0
     while True:
         model.train()
         epoch_iterator = tqdm(train_loader,
@@ -191,6 +196,7 @@ def train(args, model):
                     scaled_loss.backward()
             else:
                 loss.backward()
+            
 
             if (step + 1) % args.gradient_accumulation_steps == 0:
                 losses.update(loss.item()*args.gradient_accumulation_steps)
@@ -221,6 +227,7 @@ def train(args, model):
 
                 if global_step % t_total == 0:
                     break
+                wandb.log({"loss":loss, "val_loss": accuracy}, step=global_step)
         losses.reset()
         if global_step % t_total == 0:
             break
@@ -285,6 +292,8 @@ def main():
                         help="Loss scaling to improve fp16 numeric stability. Only used when fp16 set to True.\n"
                              "0 (default value): dynamic loss scaling.\n"
                              "Positive power of 2: static loss scaling value.\n")
+    parser.add_argument('--encoder_weight_train', action='store_true',
+                        help="Whether to use 16-bit float precision instead of 32-bit")
     args = parser.parse_args()
 
     # Setup CUDA, GPU & distributed training
@@ -308,12 +317,25 @@ def main():
 
     # Set seed
     set_seed(args)
+    
+    # start a new wandb run to track this script
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="Bosch_active_testing",
+        config=args,
+        entity="susanbao",
+        notes=socket.gethostname(),
+        name=args.name,
+        job_type="training"
+    )
 
     # Model & Tokenizer Setup
     args, model = setup(args)
 
     # Training
     train(args, model)
+    
+    wandb.finish()
 
 
 if __name__ == "__main__":

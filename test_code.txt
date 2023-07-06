@@ -1,3 +1,9 @@
 CUDA_VISIBALE_DEVICES=1 python3 train_at.py --name ViT-train-with-test --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/
 
 CUDA_VISIBALE_DEVICES=0 python3 train_at.py --name ViT-train-with-test_retrain --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ >logs/ViT-train-with-test_retrain.logs 2>logs/ViT-train-with-test_retrain.err&
+
+CUDA_VISIBALE_DEVICES=0 python3 train_at.py --name ViT-train-with-test --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ >logs/ViT-train-with-test.logs 2>logs/ViT-train-with-test.err&
+
+CUDA_VISIBALE_DEVICES=0 python3 train_at.py --name ViT-train-20000 --gradient_accumulation_steps 4 --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ >logs/ViT-train-with-test.logs 2>logs/ViT-train-with-test.err&
+
+CUDA_VISIBALE_DEVICES=0 python3 train_at.py --name ViT-train-20000-encoder-train --gradient_accumulation_steps 4 --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ --encoder_weight_train >logs/ViT-train-with-test.logs 2>logs/ViT-train-with-test.err&

@@ -44,3 +44,4 @@ coco/
 data/
 logs/
 output/
+wandb/
