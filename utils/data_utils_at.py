@@ -15,17 +15,18 @@ def get_loader_at(args):
         torch.distributed.barrier()
         
     model_data_path = args.data_dir
+    data_second_dir = args.data_second_dir
     split = "train"
-    store_preprocess_inputs_path = model_data_path + split + f"/pre_data/{split}_box_level_ViT_inputs_all.npy"
-    store_preprocess_annotations_path = model_data_path + split + f"/pre_data/{split}_box_level_ViT_annotations_all.npy"
+    store_preprocess_inputs_path = model_data_path + split + "/" + data_second_dir + f"/{split}_box_level_ViT_inputs.npy"
+    store_preprocess_annotations_path = model_data_path + split + "/" + data_second_dir + f"/{split}_box_level_ViT_annotations.npy"
     with open(store_preprocess_inputs_path, 'rb') as outfile:
         train_inputs = torch.from_numpy(np.load(outfile).astype(np.float32))
     with open(store_preprocess_annotations_path, 'rb') as outfile:
         train_annotations = torch.from_numpy(np.load(outfile).astype(np.float32))
         
     split = "val"
-    store_preprocess_inputs_path = model_data_path + split + f"/pre_data/{split}_box_level_ViT_inputs.npy"
-    store_preprocess_annotations_path = model_data_path + split + f"/pre_data/{split}_box_level_ViT_annotations.npy"
+    store_preprocess_inputs_path = model_data_path + split + "/" + data_second_dir + f"/{split}_box_level_ViT_inputs.npy"
+    store_preprocess_annotations_path = model_data_path + split + + "/" + data_second_dir + f"/{split}_box_level_ViT_annotations.npy"
     with open(store_preprocess_inputs_path, 'rb') as outfile:
         test_inputs = torch.from_numpy(np.load(outfile).astype(np.float32))
     with open(store_preprocess_annotations_path, 'rb') as outfile:

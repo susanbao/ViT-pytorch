@@ -253,6 +253,8 @@ def main():
                         help="The output directory where checkpoints will be written.")
     parser.add_argument("--data_dir", type=str, default="../orkspace/DINO/data/5_scale_31/",
                         help="Where to search for pretrained ViT models.")
+    parser.add_argument("--data_second_dir", type=str, default="pre_data",
+                        help="the folder name to have data.")
 
     parser.add_argument("--img_size", default=224, type=int,
                         help="Resolution size")
