@@ -6,6 +6,7 @@ import os
 
 from torchvision import transforms, datasets
 from torch.utils.data import DataLoader, RandomSampler, DistributedSampler, SequentialSampler, TensorDataset, Dataset
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +33,8 @@ class FeatureDataset(Dataset):
         feature_idx = one_result["feature_idx"]
         feature = np_read_with_tensor_output(self.input_dir+ "feature" + str(feature_idx)+".npy")
         feature = torch.cat((token, feature), dim=0)
-        annotation = self.annotation[index]
-        return tuple(feature, annotation)
+        annotation = self.annotations[index]
+        return tuple((feature, annotation))
     
     def __len__(self):
         return self.lens

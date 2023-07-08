@@ -19,7 +19,8 @@ from apex.parallel import DistributedDataParallel as DDP
 
 from models.modeling_at import ActiveTestVisionTransformer, CONFIGS
 from utils.scheduler import WarmupLinearSchedule, WarmupCosineSchedule
-from utils.data_utils_at import get_loader_at, get_loader_feature
+from utils.data_utils_at import get_loader_at
+from utils.data_utils_feature import get_loader_feature
 from utils.dist_util import get_world_size
 import ipdb
 import json
