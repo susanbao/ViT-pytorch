@@ -14,6 +14,11 @@ def np_read_with_tensor_output(file):
         data = np.load(outfile)
     return torch.from_numpy(data.astype(np.float32))
 
+def read_one_json_results(path):
+    with open(path, "r") as outfile:
+        data = json.load(outfile)
+    return data
+
 class FeatureDataset(Dataset):
     """ Use feature from other model as dataset """
     def __init__(self, input_dir, annotation_dir, length = 0):
@@ -22,7 +27,11 @@ class FeatureDataset(Dataset):
         self.lens = self.annotations.shape[0] if length == 0 else length
     
     def __getitem__(self, index):
-        feature = np_read_with_tensor_output(self.input_dir+str(index)+".npy")
+        one_result = read_one_json_results(self.input_dir+ str(index)+".json")
+        token = torch.FloatTensor(one_result["self_feature"])
+        feature_idx = one_result["feature_idx"]
+        feature = np_read_with_tensor_output(self.input_dir+ "feature" + str(feature_idx)+".npy")
+        feature = torch.cat((token, feature), dim=0)
         annotation = self.annotation[index]
         return tuple(feature, annotation)
     

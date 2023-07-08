@@ -19,7 +19,7 @@ from apex.parallel import DistributedDataParallel as DDP
 
 from models.modeling_at import ActiveTestVisionTransformer, CONFIGS
 from utils.scheduler import WarmupLinearSchedule, WarmupCosineSchedule
-from utils.data_utils_at import get_loader_at
+from utils.data_utils_at import get_loader_at, get_loader_feature
 from utils.dist_util import get_world_size
 import ipdb
 import json
@@ -138,7 +138,8 @@ def train(args, model):
     args.train_batch_size = args.train_batch_size // args.gradient_accumulation_steps
 
     # Prepare dataset
-    train_loader, test_loader = get_loader_at(args)
+    # train_loader, test_loader = get_loader_at(args)
+    train_loader, test_loader = get_loader_feature(args)
 
     # Prepare optimizer and scheduler
     optimizer = torch.optim.SGD(model.parameters(),
