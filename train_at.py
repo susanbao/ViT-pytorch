@@ -62,7 +62,7 @@ def save_model(args, model):
 def setup(args):
     # Prepare model
     config = CONFIGS[args.model_type]
-
+    config.input_feature_dim = args.input_feature_dim
     model = ActiveTestVisionTransformer(config)
     model.load_from(np.load(args.pretrained_dir), requires_grad = args.encoder_weight_train)
     model.to(args.device)
@@ -253,8 +253,10 @@ def main():
                         help="The output directory where checkpoints will be written.")
     parser.add_argument("--data_dir", type=str, default="../orkspace/DINO/data/5_scale_31/",
                         help="Where to search for pretrained ViT models.")
-    parser.add_argument("--data_second_dir", type=str, default="pre_data",
+    parser.add_argument("--data_name", type=str, default="box_level_ViT",
                         help="the folder name to have data.")
+    parser.add_argument("--input_feature_dim", type=int, default=95,
+                        help="length of the input feature for each sample.")
 
     parser.add_argument("--img_size", default=224, type=int,
                         help="Resolution size")

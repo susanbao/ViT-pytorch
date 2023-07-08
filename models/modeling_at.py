@@ -131,7 +131,7 @@ class Embeddings(nn.Module):
         patch_size = _pair(config.patches["size"])
         n_patches = (img_size[0] // patch_size[0]) * (img_size[1] // patch_size[1])
         self.hybrid = False
-        self.patch_embeddings = Linear(95, config.hidden_size)
+        self.patch_embeddings = Linear(config.input_feature_dim, config.hidden_size)
         
         self.position_embeddings = nn.Parameter(torch.zeros(1, n_patches+1, config.hidden_size))
 
