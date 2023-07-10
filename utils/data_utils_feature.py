@@ -45,12 +45,12 @@ def get_loader_feature(args):
         
     model_data_path = args.data_dir
     data_name = args.data_name
-    split = "val"
+    split = "train"
     store_preprocess_inputs_path = model_data_path + split + "/feature_pre_data/"
     store_preprocess_annotations_path = model_data_path + split + "/feature_pre_data/annotation.npy"
     train_datasets = FeatureDataset(store_preprocess_inputs_path, store_preprocess_annotations_path)
     
-    splite = "train"
+    split = "val"
     store_preprocess_inputs_path = model_data_path + split + "/feature_pre_data/"
     store_preprocess_annotations_path = model_data_path + split + "/feature_pre_data/annotation.npy"
     test_datasets = FeatureDataset(store_preprocess_inputs_path, store_preprocess_annotations_path)
