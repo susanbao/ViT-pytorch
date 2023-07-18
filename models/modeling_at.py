@@ -35,6 +35,57 @@ ATTENTION_NORM = "LayerNorm_0"
 MLP_NORM = "LayerNorm_2"
 
 
+def ash_p(x, percentile=65):
+    assert x.dim() == 3
+    assert 0 <= percentile <= 100
+
+    b, c, h = x.shape
+
+    n = x.shape[1:].numel()
+    k = n - int(np.round(n * percentile / 100.0))
+    t = x.view((b, c * h))
+    v, i = torch.topk(t, k, dim=1)
+    t.zero_().scatter_(dim=1, index=i, src=v)
+
+    return x
+
+
+def ash_s(x, percentile=65):
+    assert x.dim() == 3
+    assert 0 <= percentile <= 100
+    b, c, h = x.shape
+
+    # calculate the sum of the input per sample
+    s1 = x.sum(dim=[1, 2])
+    n = x.shape[1:].numel()
+    k = n - int(np.round(n * percentile / 100.0))
+    t = x.view((b, c * h))
+    v, i = torch.topk(t, k, dim=1)
+    t.zero_().scatter_(dim=1, index=i, src=v)
+
+    # calculate new sum of the input per sample after pruning
+    s2 = x.sum(dim=[1, 2])
+
+    # apply sharpening
+    scale = s1 / s2
+    x = x * torch.exp(scale[:, None, None])
+
+    return x
+
+
+def ash_rand(x, percentile=65, r1=0, r2=10):
+    assert x.dim() == 3
+    assert 0 <= percentile <= 100
+    b, c, h = x.shape
+
+    n = x.shape[1:].numel()
+    k = n - int(np.round(n * percentile / 100.0))
+    t = x.view((b, c * h))
+    v, i = torch.topk(t, k, dim=1)
+    v = v.uniform_(r1, r2)
+    t.zero_().scatter_(dim=1, index=i, src=v)
+    return x
+
 def np2th(weights, conv=False):
     """Possibly convert HWIO to OIHW."""
     if conv:
@@ -136,12 +187,12 @@ class Embeddings(nn.Module):
         self.position_embeddings = nn.Parameter(torch.zeros(1, n_patches+1, config.hidden_size))
 
         self.dropout = Dropout(config.transformer["dropout_rate"])
+        self.per = config.ash_per
 
     def forward(self, x):
         x = self.patch_embeddings(x) # [batch_size * n_patches+1 * hidden_size], n_patches=196, hidden_size=768
         # token = self.patch_embeddings(token) 
         # x = torch.cat((token, x), dim=1) 
-
         embeddings = x + self.position_embeddings
         embeddings = self.dropout(embeddings)
         return embeddings
@@ -266,10 +317,12 @@ class ActiveTestVisionTransformer(nn.Module):
 
         self.transformer = Transformer(config, img_size, vis)
         self.head = Linear(config.hidden_size, num_classes)
-        self.loss_function = torch.nn.MSELoss(reduction='mean')
+        self.loss_function = torch.nn.SmoothL1Loss(reduction='mean')
+        self.per = config.ash_per
 
     def forward(self, x, labels=None):
         x, attn_weights = self.transformer(x)
+        # x = ash_s(x, self.per)
         estimates = self.head(x[:, 0])
         estimates = estimates.reshape(estimates.shape[0])
         if labels is not None:

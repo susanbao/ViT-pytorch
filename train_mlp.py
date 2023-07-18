@@ -26,10 +26,48 @@ import ipdb
 import json
 import wandb
 import socket
+from torch import nn
 
 
 logger = logging.getLogger(__name__)
 
+class MPLNet(nn.Module):
+    def __init__(self, input_dims = 10000, output_dims = 1, dropout = 0.1):
+        super().__init__()
+        self.input_dims = 21*256
+        self.layer1=nn.Linear(self.input_dims, 1000)
+        self.layer2=nn.Linear(1000, 100)
+        self.layer3=nn.Linear(100, 10)
+        self.layer4=nn.Linear(10, 1)
+        self.norm1 = nn.LayerNorm(1000)
+        self.norm2 = nn.LayerNorm(100)
+        self.norm3 = nn.LayerNorm(10)
+        self._init_parms(self.layer1)
+        self._init_parms(self.layer2)
+        self._init_parms(self.layer3)
+        self._init_parms(self.layer4)
+        # self.dropout1 = nn.Dropout(dropout)
+        # self.dropout2 = nn.Dropout(dropout)
+        # self.dropout3 = nn.Dropout(dropout)
+        self.start_dims = 5*256
+        self.loss_function = torch.nn.MSELoss(reduction='mean')
+    
+    def _init_parms(self, module):
+        module.weight.data.normal_(mean=0.0, std=1.0)
+        
+    def forward(self, x, labels=None):
+        x = x[:,:21,self.start_dims:]
+        x=x.reshape((-1, self.input_dims))
+        x=nn.functional.relu(self.norm1(self.layer1(x)))
+        x=nn.functional.relu(self.norm2(self.layer2(x)))
+        x=nn.functional.relu(self.norm3(self.layer3(x)))
+        x=self.layer4(x)
+        x = x.reshape(x.shape[0])
+        if labels is not None:
+            loss = self.loss_function(x, labels)
+            return loss
+        else:
+            return x, None
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -55,8 +93,8 @@ def simple_accuracy(preds, labels):
 
 def save_model(args, model):
     model_to_save = model.module if hasattr(model, 'module') else model
-    model_checkpoint = os.path.join(args.output_dir, "%s_checkpoint.bin" % args.name)
-    torch.save(model_to_save.state_dict(), model_checkpoint)
+    model_checkpoint = os.path.join(args.output_dir, "%s_checkpoint.pth" % args.name)
+    torch.save({"state_dict": model_to_save.state_dict()}, model_checkpoint)
     logger.info("Saved model checkpoint to [DIR: %s]", args.output_dir)
 
 
@@ -65,8 +103,8 @@ def setup(args):
     config = CONFIGS[args.model_type]
     config.input_feature_dim = args.input_feature_dim
     config.ash_per = args.ash_per
-    model = ActiveTestVisionTransformer(config)
-    model.load_from(np.load(args.pretrained_dir), requires_grad = args.encoder_weight_train)
+    model = MPLNet()
+    # model.load_from(np.load(args.pretrained_dir), requires_grad = args.encoder_weight_train)
     # model.load_state_dict(torch.from_numpy(np.load(args.pretrained_dir)))
     model.to(args.device)
     num_params = count_parameters(model)
@@ -109,7 +147,7 @@ def valid(args, model, writer, test_loader, global_step):
                           bar_format="{l_bar}{r_bar}",
                           dynamic_ncols=True,
                           disable=args.local_rank not in [-1, 0])
-    loss_fct = torch.nn.SmoothL1Loss(reduction='mean')
+    loss_fct = torch.nn.MSELoss(reduction='mean')
     for step, batch in enumerate(epoch_iterator):
         batch = tuple(t.to(args.device) for t in batch)
         x, y = batch
@@ -263,8 +301,6 @@ def main():
                         help="length of the input feature for each sample.")
     parser.add_argument("--ash_per", default=80, type=int,
                         help="percentage for ash technique")
-    parser.add_argument("--loss_type", default="loss", type=str,
-                        help="The estimated loss type: loss, loss_ce, loss_bbox, loss_giou")
 
     parser.add_argument("--img_size", default=224, type=int,
                         help="Resolution size")
