@@ -10,7 +10,7 @@ import json
 
 logger = logging.getLogger(__name__)
 
-normalize_list = {"loss_bbox": [0.09300409561655773, 0.0767726528828114], "loss_ce": [0.3522786986406354, 0.7470140154753052], "loss_giou": [1.1611697194208146, 0.47297514438862676], "loss": [3.1396386155214007, 1.4399662609117525]}
+normalize = [0.05269893, 0.053517897]
 
 def np_read_with_tensor_output(file):
     with open(file, "rb") as outfile:
@@ -24,28 +24,20 @@ def read_one_json_results(path):
 
 class FeatureDataset(Dataset):
     """ Use feature from other model as dataset """
-    def __init__(self, input_dir, annotation_dir, feature_path, loss_type, length = 0, shift = 0):
+    def __init__(self, input_dir, annotation_dir, length = 0, shift = 0):
         self.annotations = np_read_with_tensor_output(annotation_dir)
-        self.annotations = (self.annotations - normalize_list[loss_type][0])/normalize_list[loss_type][1]
-        self.input_dir = input_dir
-        self.feature_dir = feature_path
+        self.annotations = (self.annotations - normalize[0])/normalize[1]
+        self.feature_dir = input_dir
         self.lens = self.annotations.shape[0] if length == 0 else length
         self.shift = shift
     
     def __getitem__(self, index):
-        one_result = read_one_json_results(self.input_dir+ str(index+self.shift)+".json")
-        # token = torch.FloatTensor(one_result["self_feature"])
-        # feature_idx = one_result["feature_idx"]
-        # feature = np_read_with_tensor_output(self.input_dir+ "feature" + str(feature_idx)+".npy")
-        # feature = torch.cat((token, feature), dim=0)
-        selected_idxs = one_result["selected_idxs"]
-        feature_idx = one_result["feature_idx"]
-        feature = np_read_with_tensor_output(self.feature_dir + str(feature_idx)+".npy")
-        feature = feature.permute(1,0,2)
-        feature = feature.reshape((feature.shape[0], -1))
-        feature = feature[selected_idxs]
-        # feature[21:,:] = 0.0
-        annotation = self.annotations[index+self.shift]
+        index = index + self.shift
+        file_name = str(index//8) + ".npy"
+        one_result = np_read_with_tensor_output(self.feature_dir + file_name)
+        image_index = index % 8
+        feature = one_result[image_index]
+        annotation = self.annotations[index]
         return tuple((feature, annotation))
     
     def __len__(self):
@@ -58,21 +50,15 @@ def get_loader_feature(args):
     model_data_path = args.data_dir
     data_name = args.data_name
     loss_type = args.loss_type
-    if loss_type == "loss":
-        annotation_name = "annotation.npy"
-    else:
-        annotation_name = f"annotation_{loss_type}.npy"
     split = "train"
-    store_preprocess_inputs_path = model_data_path + split + "/feature_pre_data/"
-    store_preprocess_annotations_path = model_data_path + split + "/feature_pre_data/" + annotation_name
-    feature_path = model_data_path + split + "/feature_data/"
-    train_datasets = FeatureDataset(store_preprocess_inputs_path, store_preprocess_annotations_path, feature_path, loss_type)
+    store_preprocess_inputs_path = model_data_path + split + "/output/"
+    store_preprocess_annotations_path = model_data_path + split + "/image_true_losses.npy"
+    train_datasets = FeatureDataset(store_preprocess_inputs_path, store_preprocess_annotations_path)
     
     split = "val"
-    store_preprocess_inputs_path = model_data_path + split + "/feature_pre_data/"
-    store_preprocess_annotations_path = model_data_path + split + "/feature_pre_data/" + annotation_name
-    feature_path = model_data_path + split + "/feature_data/"
-    test_datasets = FeatureDataset(store_preprocess_inputs_path, store_preprocess_annotations_path, feature_path, loss_type)
+    store_preprocess_inputs_path = model_data_path + split + "/output/"
+    store_preprocess_annotations_path = model_data_path + split + "/image_true_losses.npy"
+    test_datasets = FeatureDataset(store_preprocess_inputs_path, store_preprocess_annotations_path)
 
     if args.local_rank == 0:
         torch.distributed.barrier()

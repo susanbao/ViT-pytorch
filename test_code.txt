@@ -1,47 +1,5 @@
-CUDA_VISIBLE_DEVICES=1 python3 train_at.py --name ViT-train-with-test --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/
-
-CUDA_VISIBLE_DEVICES=0 python3 train_at.py --name ViT-train-with-test_retrain --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ >logs/ViT-train-with-test_retrain.logs 2>logs/ViT-train-with-test_retrain.err&
-
-CUDA_VISIBLE_DEVICES=0 python3 train_at.py --name ViT-train-with-test --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ >logs/ViT-train-with-test.logs 2>logs/ViT-train-with-test.err&
-
-CUDA_VISIBLE_DEVICES=0 python3 train_at.py --name ViT-train-20000 --gradient_accumulation_steps 4 --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ >logs/ViT-train-with-test.logs 2>logs/ViT-train-with-test.err&
-
-CUDA_VISIBLE_DEVICES=0 python3 train_at.py --name ViT-train-20000-encoder-train --gradient_accumulation_steps 4 --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ --encoder_weight_train >logs/ViT-train-with-test.logs 2>logs/ViT-train-with-test.err&
-
-CUDA_VISIBLE_DEVICES=0 python3 train_at.py --name ViT-feature-train-with-test-2000 --gradient_accumulation_steps 4 --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ --data_name feature_box_level_ViT --input_feature_dim 1536 >logs/ViT-feature-train-with-test.logs 2>logs/ViT-feature-train-with-test.err&
-
-CUDA_VISIBLE_DEVICES=0 python3 train_at.py --name ViT-feature-train-with-test --gradient_accumulation_steps 4 --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ --data_name feature_box_level_ViT --input_feature_dim 1536 --num_steps 100000 --eval_every 2000 >logs/ViT-feature-train-with-test.logs 2>logs/ViT-feature-train-with-test.err&
-
-CUDA_VISIBLE_DEVICES=1 python3 train_at.py --name ViT-feature-train-30000 --gradient_accumulation_steps 4 --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ --data_name feature_box_level_ViT --input_feature_dim 1536 --num_steps 100000 --eval_every 2000 >logs/ViT-feature-train.logs 2>logs/ViT-feature-train.err&
-
-CUDA_VISIBLE_DEVICES=0 python3 train_at.py --name ViT-feature-train-30000-l2 --gradient_accumulation_steps 4 --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ --data_name feature_box_level_ViT --input_feature_dim 1536 --num_steps 100000 --eval_every 2000 --weight_decay 0.01 >logs/ViT-feature-train-l2.logs 2>logs/ViT-feature-train-l2.err&
-
-CUDA_VISIBLE_DEVICES=0 python3 train_at.py --name ViT-feature-train-30000-l2 --gradient_accumulation_steps 4 --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ --data_name feature_box_level_ViT --input_feature_dim 1536 --num_steps 100000 --eval_every 2000 --weight_decay 0.1 >logs/ViT-feature-train-l2.logs 2>logs/ViT-feature-train-l2.err&
-
-CUDA_VISIBLE_DEVICES=1 python3 train_at.py --name ViT-feature-train-30000-l2 --gradient_accumulation_steps 4 --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ --data_name feature_box_level_ViT --input_feature_dim 1536 --num_steps 100000 --eval_every 2000 --weight_decay 0.001 >logs/ViT-feature-train.logs 2>logs/ViT-feature-train.err&
-
-CUDA_VISIBLE_DEVICES=0 python3 train_at.py --name ViT-feature-train-test-split --gradient_accumulation_steps 4 --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ --data_name feature_box_level_ViT --input_feature_dim 1536 --num_steps 100000 --eval_every 2000 >logs/ViT-feature-train-l2.logs 2>logs/ViT-feature-train-l2.err&
-
-CUDA_VISIBLE_DEVICES=1 python3 train_at.py --name ViT-feature-train-ash-last-s-90 --gradient_accumulation_steps 4 --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ --data_name feature_box_level_ViT --input_feature_dim 1536 --num_steps 100000 --eval_every 2000 --ash_per 90 >logs/ViT-feature-train.logs 2>logs/ViT-feature-train.err&
-
-CUDA_VISIBLE_DEVICES=1 python3 train_at.py --name ViT-feature-train-ash-last-p-90 --gradient_accumulation_steps 4 --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ --data_name feature_box_level_ViT --input_feature_dim 1536 --num_steps 100000 --eval_every 2000 --ash_per 90 >logs/ViT-feature-train-l2.logs 2>logs/ViT-feature-train-l2.err&
-
-CUDA_VISIBLE_DEVICES=0 python3 train_at.py --name ViT-feature-train-60000 --gradient_accumulation_steps 4 --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ --data_name feature_box_level_ViT --input_feature_dim 1536 --num_steps 100000 --eval_every 2000 >logs/ViT-feature-train.logs 2>logs/ViT-feature-train.err&
-
-CUDA_VISIBLE_DEVICES=0 python3 train_at.py --name ViT-feature-Nearest-train-60000 --gradient_accumulation_steps 4 --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ --data_name feature_box_level_ViT --input_feature_dim 1536 --num_steps 100000 --eval_every 2000 >logs/ViT-feature-train.logs 2>logs/ViT-feature-train.err&
-
-CUDA_VISIBLE_DEVICES=1 python3 train_at.py --name ViT-feature-Nearest-train-with-test --gradient_accumulation_steps 4 --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ --data_name feature_box_level_ViT --input_feature_dim 1536 --num_steps 100000 --eval_every 2000 >logs/ViT-feature-test.logs 2>logs/ViT-feature-test.err&
-
-CUDA_VISIBLE_DEVICES=0 python3 train_at.py --name ViT-feature-Nearest-train-60000-20 --gradient_accumulation_steps 4 --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ --data_name feature_box_level_ViT --input_feature_dim 1536 --num_steps 100000 --eval_every 2000 >logs/ViT-feature-train.logs 2>logs/ViT-feature-train.err&
-
-CUDA_VISIBLE_DEVICES=1 python3 train_at.py --name ViT-feature-Nearest-train-60000-L --gradient_accumulation_steps 4 --model_type ViT-L_16 --pretrained_dir ../ViT_ckpts/ViT-L_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ --data_name feature_box_level_ViT --input_feature_dim 1536 --num_steps 100000 --eval_every 2000 >logs/ViT-feature-test.logs 2>logs/ViT-feature-test.err&
-
-CUDA_VISIBLE_DEVICES=0 python3 train_mlp.py --name ViT-feature-MLP-train-60000 --gradient_accumulation_steps 4 --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ --data_name feature_box_level_ViT --num_steps 50000 --eval_every 1000 >logs/ViT-feature-MLP.logs 2>logs/ViT-feature-MLP.err&
-
-CUDA_VISIBLE_DEVICES=0 python3 train_at.py --name ViT-feature-Nearest-train-60000-class-loss --gradient_accumulation_steps 4 --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ --data_name feature_box_level_ViT --input_feature_dim 1536 --num_steps 100000 --eval_every 1000 --loss_type loss_ce >logs/ViT-feature-train.logs 2>logs/ViT-feature-train.err&
-
-CUDA_VISIBLE_DEVICES=1 python3 train_at.py --name ViT-feature-Nearest-train-60000-bbox-loss --gradient_accumulation_steps 4 --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ --data_name feature_box_level_ViT --input_feature_dim 1536 --num_steps 100000 --eval_every 1000 --loss_type loss_bbox >logs/ViT-feature-test.logs 2>logs/ViT-feature-test.err&
-
-CUDA_VISIBLE_DEVICES=0 python3 train_at.py --name ViT-feature-Nearest-train-60000-bbox-giou --gradient_accumulation_steps 4 --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ --data_name feature_box_level_ViT --input_feature_dim 1536 --num_steps 100000 --eval_every 1000 --loss_type loss_giou >logs/ViT-feature-test.logs 2>logs/ViT-feature-test.err&
-
 CUDA_VISIBLE_DEVICES=1 python3 train_at.py --name ViT-feature-Nearest-train-60000 --gradient_accumulation_steps 4 --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ --data_name feature_box_level_ViT --input_feature_dim 1536 --num_steps 100000 --eval_every 1000 --loss_type loss >logs/ViT-feature-test.logs 2>logs/ViT-feature-test.err&
+
+CUDA_VISIBLE_DEVICES=0 python3 train_at.py --name ViT-output-PSPNet-VOC-train --gradient_accumulation_steps 4 --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 64 --data_dir /workspace/pytorch-segmentation/pro_data/PSPNet_VOC/ --data_name feature_box_level_ViT --input_feature_dim 21 --num_steps 50000 --eval_every 500 >logs/ViT-output-PSPNet-VOC-train.logs 2>logs/ViT-output-PSPNet-VOC-train.err&
+
+CUDA_VISIBLE_DEVICES=0 python3 train_at.py --name ViT-output-PSPNet-VOC-test --gradient_accumulation_steps 4 --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 64 --data_dir /workspace/pytorch-segmentation/pro_data/PSPNet_VOC/ --data_name feature_box_level_ViT --input_feature_dim 21 --num_steps 50000 --eval_every 100 >logs/ViT-output-PSPNet-VOC-test.logs 2>logs/ViT-output-PSPNet-VOC-test.err&

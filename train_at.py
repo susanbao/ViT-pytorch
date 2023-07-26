@@ -17,7 +17,7 @@ from torch.utils.tensorboard import SummaryWriter
 from apex import amp
 from apex.parallel import DistributedDataParallel as DDP
 
-from models.modeling_at import ActiveTestVisionTransformer, CONFIGS
+from models.modeling_seg import ActiveTestVisionTransformer, CONFIGS
 from utils.scheduler import WarmupLinearSchedule, WarmupCosineSchedule
 from utils.data_utils_at import get_loader_at
 from utils.data_utils_feature import get_loader_feature
@@ -266,7 +266,7 @@ def main():
     parser.add_argument("--loss_type", default="loss", type=str,
                         help="The estimated loss type: loss, loss_ce, loss_bbox, loss_giou")
 
-    parser.add_argument("--img_size", default=224, type=int,
+    parser.add_argument("--img_size", default=480, type=int,
                         help="Resolution size")
     parser.add_argument("--train_batch_size", default=512, type=int,
                         help="Total batch size for training.")
