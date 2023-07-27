@@ -27,6 +27,7 @@ import json
 import wandb
 import socket
 from torch import nn
+from torchvision.models import resnet18
 
 
 logger = logging.getLogger(__name__)
@@ -69,6 +70,40 @@ class MPLNet(nn.Module):
         else:
             return x, None
 
+# Define the Ridge Regression model using nn.Module
+class RidgeRegression(nn.Module):
+    def __init__(self, input_size, output_size, alpha=1.0):
+        super(RidgeRegression, self).__init__()
+        self.alpha = alpha
+        self.linear = nn.Linear(input_size, output_size)
+        self.loss_function = torch.nn.MSELoss(reduction='mean')
+
+    def forward(self, x, labels=None):
+        x = self.linear(x)
+        if labels is not None:
+            loss = self.loss_function(x, labels)
+            return loss
+        else:
+            return x, None
+
+# Define the ResNet-18 regression model
+class ResNetRegression(nn.Module):
+    def __init__(self, input_channels, output_size):
+        super(ResNetRegression, self).__init__()
+        self.resnet = resnet18(pretrained=True)
+        # Modify the first layer to accommodate the specified input_channels
+        self.resnet.conv1 = nn.Conv2d(input_channels, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.resnet.fc = nn.Linear(512, output_size)  # Change the fully connected layer to output_size units
+        self.loss_function = torch.nn.MSELoss(reduction='mean')
+
+    def forward(self, x, labels=None):
+        x = self.resnet(x)
+        if labels is not None:
+            loss = self.loss_function(x, labels)
+            return loss
+        else:
+            return x, None
+
 class AverageMeter(object):
     """Computes and stores the average and current value"""
     def __init__(self):
@@ -103,7 +138,7 @@ def setup(args):
     config = CONFIGS[args.model_type]
     config.input_feature_dim = args.input_feature_dim
     config.ash_per = args.ash_per
-    model = MPLNet()
+    model = ResNetRegression(input_channels = 21, output_size = 1)
     # model.load_from(np.load(args.pretrained_dir), requires_grad = args.encoder_weight_train)
     # model.load_state_dict(torch.from_numpy(np.load(args.pretrained_dir)))
     model.to(args.device)

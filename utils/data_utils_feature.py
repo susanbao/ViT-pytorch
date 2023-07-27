@@ -37,6 +37,7 @@ class FeatureDataset(Dataset):
         one_result = np_read_with_tensor_output(self.feature_dir + file_name)
         image_index = index % 8
         feature = one_result[image_index]
+        # feature = feature.reshape((-1))
         annotation = self.annotations[index]
         return tuple((feature, annotation))
     
@@ -49,7 +50,6 @@ def get_loader_feature(args):
         
     model_data_path = args.data_dir
     data_name = args.data_name
-    loss_type = args.loss_type
     split = "train"
     store_preprocess_inputs_path = model_data_path + split + "/output/"
     store_preprocess_annotations_path = model_data_path + split + "/image_true_losses.npy"
