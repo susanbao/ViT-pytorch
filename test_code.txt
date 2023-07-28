@@ -8,4 +8,6 @@ CUDA_VISIBLE_DEVICES=0 python3 train_at.py --name ViT-output-PSPNet-VOC-train --
 
 CUDA_VISIBLE_DEVICES=0 python3 train_mlp.py --name ridge-regression-output-PSPNet-VOC-train --gradient_accumulation_steps 4  --train_batch_size 64 --data_dir /workspace/pytorch-segmentation/pro_data/PSPNet_VOC/ --num_steps 10000 --eval_every 500
 
-CUDA_VISIBLE_DEVICES=0 python3 train_mlp.py --name resNet18-output-PSPNet-VOC-train --gradient_accumulation_steps 4  --train_batch_size 64 --data_dir /workspace/pytorch-segmentation/pro_data/PSPNet_VOC/ --num_steps 10000 --eval_every 500 --learning_rate 0.0001
+CUDA_VISIBLE_DEVICES=0 python3 train_mlp.py --name resNet18-output-PSPNet-VOC-train --gradient_accumulation_steps 4  --train_batch_size 64 --data_dir /workspace/pytorch-segmentation/pro_data/PSPNet_VOC/ --num_steps 100000 --eval_every 500 --learning_rate 0.00001 >logs/resNet18-output-PSPNet-VOC-train.logs 2>logs/resNet18-output-PSPNet-VOC-train.err&
+
+CUDA_VISIBLE_DEVICES=0 python3 train_mlp.py --name resNet18-output-PSPNet-VOC-train-norm --gradient_accumulation_steps 4  --train_batch_size 64 --data_dir /workspace/pytorch-segmentation/pro_data/PSPNet_VOC/ --num_steps 100000 --eval_every 500 --learning_rate 1 >logs/resNet18-output-PSPNet-VOC-train.logs 2>logs/resNet18-output-PSPNet-VOC-train.err&

@@ -37,6 +37,7 @@ class FeatureDataset(Dataset):
         one_result = np_read_with_tensor_output(self.feature_dir + file_name)
         image_index = index % 8
         feature = one_result[image_index]
+        feature = (feature - feature.mean()) / feature.std()
         # feature = feature.reshape((-1))
         annotation = self.annotations[index]
         return tuple((feature, annotation))

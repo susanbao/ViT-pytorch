@@ -32,6 +32,29 @@ from torchvision.models import resnet18
 
 logger = logging.getLogger(__name__)
 
+class MLP(nn.Module):
+    def __init__(self, input_size, hidden_sizes, output_size):
+        super(MLP, self).__init__()
+        layers = []
+        layer_sizes = [input_size] + hidden_sizes + [output_size]
+        self.loss_function = torch.nn.MSELoss(reduction='mean')
+
+        for i in range(len(layer_sizes) - 1):
+            layers.append(nn.Linear(layer_sizes[i], layer_sizes[i+1]))
+            if i < len(layer_sizes) - 2:
+                layers.append(nn.LayerNorm(layer_sizes[i+1]))  # Adding LayerNorm between hidden layers
+                layers.append(nn.ReLU())  # Adding ReLU activation between hidden layers
+
+        self.model = nn.Sequential(*layers)
+
+    def forward(self, x):
+        x = self.model(x)
+        if labels is not None:
+            loss = self.loss_function(x, labels)
+            return loss
+        else:
+            return x, None
+
 class MPLNet(nn.Module):
     def __init__(self, input_dims = 10000, output_dims = 1, dropout = 0.1):
         super().__init__()
@@ -95,6 +118,8 @@ class ResNetRegression(nn.Module):
         self.resnet.conv1 = nn.Conv2d(input_channels, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.resnet.fc = nn.Linear(512, output_size)  # Change the fully connected layer to output_size units
         self.loss_function = torch.nn.MSELoss(reduction='mean')
+        nn.init.kaiming_uniform_(self.resnet.conv1.weight)
+        nn.init.kaiming_uniform_(self.resnet.fc.weight)
 
     def forward(self, x, labels=None):
         x = self.resnet(x)
@@ -138,7 +163,8 @@ def setup(args):
     config = CONFIGS[args.model_type]
     config.input_feature_dim = args.input_feature_dim
     config.ash_per = args.ash_per
-    model = ResNetRegression(input_channels = 21, output_size = 1)
+    # model = ResNetRegression(input_channels = 21, output_size = 1)
+    model = MLP(21, [50,30,10]output_size = 1)
     # model.load_from(np.load(args.pretrained_dir), requires_grad = args.encoder_weight_train)
     # model.load_state_dict(torch.from_numpy(np.load(args.pretrained_dir)))
     model.to(args.device)
@@ -222,6 +248,7 @@ def train(args, model):
                                 lr=args.learning_rate,
                                 momentum=0.9,
                                 weight_decay=args.weight_decay)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     t_total = args.num_steps
     if args.decay_type == "cosine":
         scheduler = WarmupCosineSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=t_total)
@@ -238,8 +265,6 @@ def train(args, model):
     if args.local_rank != -1:
         model = DDP(model, message_size=250000000, gradient_predivide_factor=get_world_size())
     
-    wandb.watch(model, log="all")
-
     # Train!
     logger.info("***** Running training *****")
     logger.info("  Total optimization steps = %d", args.num_steps)
@@ -254,6 +279,7 @@ def train(args, model):
     losses = AverageMeter()
     global_step, best_acc = 0, 100000
     accuracy = 0
+    wandb.watch(model, log="all")
     while True:
         model.train()
         epoch_iterator = tqdm(train_loader,
@@ -305,6 +331,7 @@ def train(args, model):
                 if global_step % t_total == 0:
                     break
                 wandb.log({"loss":loss, "val_loss": accuracy}, step=global_step)
+                wandb.log(model.state_dict())
         losses.reset()
         if global_step % t_total == 0:
             break
