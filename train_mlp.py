@@ -47,7 +47,16 @@ class MLP(nn.Module):
 
         self.model = nn.Sequential(*layers)
 
-    def forward(self, x):
+        self.init_weights()
+
+    def init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.kaiming_uniform_(m.weight, nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+
+    def forward(self, x, labels=None):
         x = self.model(x)
         if labels is not None:
             loss = self.loss_function(x, labels)
@@ -164,7 +173,7 @@ def setup(args):
     config.input_feature_dim = args.input_feature_dim
     config.ash_per = args.ash_per
     # model = ResNetRegression(input_channels = 21, output_size = 1)
-    model = MLP(21, [50,30,10]output_size = 1)
+    model = MLP(21, [50,30,10], output_size = 1)
     # model.load_from(np.load(args.pretrained_dir), requires_grad = args.encoder_weight_train)
     # model.load_state_dict(torch.from_numpy(np.load(args.pretrained_dir)))
     model.to(args.device)

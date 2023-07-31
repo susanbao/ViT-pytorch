@@ -281,7 +281,7 @@ class ActiveTestVisionTransformer(nn.Module):
         estimates = self.head(x[:, 0])
 
         if labels is not None:
-            loss = self.loss_function(estimates, labels)
+            loss = 100 * self.loss_function(estimates, labels)
             return loss
         else:
             return estimates, attn_weights

@@ -7,6 +7,7 @@ import os
 from torchvision import transforms, datasets
 from torch.utils.data import DataLoader, RandomSampler, DistributedSampler, SequentialSampler, TensorDataset, Dataset
 import json
+import torch.nn.functional as F
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +25,12 @@ def read_one_json_results(path):
 
 class FeatureDataset(Dataset):
     """ Use feature from other model as dataset """
-    def __init__(self, input_dir, annotation_dir, length = 0, shift = 0):
+    def __init__(self, input_dir, image_dir, annotation_dir, length = 0, shift = 0):
         self.annotations = np_read_with_tensor_output(annotation_dir)
-        self.annotations = (self.annotations - normalize[0])/normalize[1]
+        # self.annotations = (self.annotations - normalize[0])/normalize[1]
+        self.annotations = torch.log(self.annotations)
         self.feature_dir = input_dir
+        self.image_dir = image_dir
         self.lens = self.annotations.shape[0] if length == 0 else length
         self.shift = shift
     
@@ -35,9 +38,12 @@ class FeatureDataset(Dataset):
         index = index + self.shift
         file_name = str(index//8) + ".npy"
         one_result = np_read_with_tensor_output(self.feature_dir + file_name)
+        one_image = np_read_with_tensor_output(self.image_dir + file_name)
         image_index = index % 8
         feature = one_result[image_index]
-        feature = (feature - feature.mean()) / feature.std()
+        image = one_image[image_index]
+        feature = F.softmax(feature, dim=0)
+        feature = torch.cat((image, feature), dim=0)
         # feature = feature.reshape((-1))
         annotation = self.annotations[index]
         return tuple((feature, annotation))
@@ -53,13 +59,15 @@ def get_loader_feature(args):
     data_name = args.data_name
     split = "train"
     store_preprocess_inputs_path = model_data_path + split + "/output/"
+    store_image_path = model_data_path + split + "/image/"
     store_preprocess_annotations_path = model_data_path + split + "/image_true_losses.npy"
-    train_datasets = FeatureDataset(store_preprocess_inputs_path, store_preprocess_annotations_path)
+    train_datasets = FeatureDataset(store_preprocess_inputs_path, store_image_path, store_preprocess_annotations_path)
     
     split = "val"
     store_preprocess_inputs_path = model_data_path + split + "/output/"
+    store_image_path = model_data_path + split + "/image/"
     store_preprocess_annotations_path = model_data_path + split + "/image_true_losses.npy"
-    test_datasets = FeatureDataset(store_preprocess_inputs_path, store_preprocess_annotations_path)
+    test_datasets = FeatureDataset(store_preprocess_inputs_path, store_image_path, store_preprocess_annotations_path)
 
     if args.local_rank == 0:
         torch.distributed.barrier()
