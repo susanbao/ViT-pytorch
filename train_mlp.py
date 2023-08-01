@@ -174,7 +174,7 @@ def setup(args):
     config.ash_per = args.ash_per
     # model = ResNetRegression(input_channels = 21, output_size = 1)
     model = MLP(21, [50,30,10], output_size = 1)
-    # model.load_from(np.load(args.pretrained_dir), requires_grad = args.encoder_weight_train)
+    # model.load_from(np.load(args.pretrained_dir), requires_grad = args.enable_backbone_grad)
     # model.load_state_dict(torch.from_numpy(np.load(args.pretrained_dir)))
     model.to(args.device)
     num_params = count_parameters(model)
@@ -413,6 +413,8 @@ def main():
                              "Positive power of 2: static loss scaling value.\n")
     parser.add_argument('--encoder_weight_train', action='store_true',
                         help="Whether to use 16-bit float precision instead of 32-bit")
+    parser.add_argument('--enable_backbone_grad', action='store_true',
+                        help="Whether to enable the retraining of backbone")
     args = parser.parse_args()
 
     # Setup CUDA, GPU & distributed training

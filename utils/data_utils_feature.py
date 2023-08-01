@@ -28,6 +28,7 @@ class FeatureDataset(Dataset):
     def __init__(self, input_dir, image_dir, annotation_dir, length = 0, shift = 0):
         self.annotations = np_read_with_tensor_output(annotation_dir)
         # self.annotations = (self.annotations - normalize[0])/normalize[1]
+        self.annotations[self.annotations < 0.01] = 0.01
         self.annotations = torch.log(self.annotations)
         self.feature_dir = input_dir
         self.image_dir = image_dir
@@ -43,6 +44,8 @@ class FeatureDataset(Dataset):
         feature = one_result[image_index]
         image = one_image[image_index]
         feature = F.softmax(feature, dim=0)
+        feature[feature>0.99] = 1
+        feature[feature<0.01] = 0
         feature = torch.cat((image, feature), dim=0)
         # feature = feature.reshape((-1))
         annotation = self.annotations[index]
