@@ -45,3 +45,4 @@ data/
 logs/
 output/
 wandb/
+attention_data/
