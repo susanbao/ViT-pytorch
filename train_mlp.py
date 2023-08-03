@@ -37,7 +37,7 @@ class MLP(nn.Module):
         super(MLP, self).__init__()
         layers = []
         layer_sizes = [input_size] + hidden_sizes + [output_size]
-        self.loss_function = torch.nn.MSELoss(reduction='mean')
+        self.loss_function = torch.nn.SmoothL1Loss(reduction='mean')
 
         for i in range(len(layer_sizes) - 1):
             layers.append(nn.Linear(layer_sizes[i], layer_sizes[i+1]))
@@ -46,6 +46,8 @@ class MLP(nn.Module):
                 layers.append(nn.ReLU())  # Adding ReLU activation between hidden layers
 
         self.model = nn.Sequential(*layers)
+
+        self.global_avg_pooling = nn.AdaptiveAvgPool2d(30)
 
         self.init_weights()
 
@@ -57,9 +59,12 @@ class MLP(nn.Module):
                     nn.init.zeros_(m.bias)
 
     def forward(self, x, labels=None):
+        x,_ = torch.max(x, dim=1, keepdim=True)
+        x = self.global_avg_pooling(x)
+        x = x.view(x.shape[0], -1)
         x = self.model(x)
         if labels is not None:
-            loss = self.loss_function(x, labels)
+            loss = 100 * self.loss_function(x, labels)
             return loss
         else:
             return x, None
@@ -173,7 +178,7 @@ def setup(args):
     config.input_feature_dim = args.input_feature_dim
     config.ash_per = args.ash_per
     # model = ResNetRegression(input_channels = 21, output_size = 1)
-    model = MLP(21, [50,30,10], output_size = 1)
+    model = MLP(900, [100,10], output_size = 1)
     # model.load_from(np.load(args.pretrained_dir), requires_grad = args.enable_backbone_grad)
     # model.load_state_dict(torch.from_numpy(np.load(args.pretrained_dir)))
     model.to(args.device)

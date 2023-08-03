@@ -39,14 +39,14 @@ class FeatureDataset(Dataset):
         index = index + self.shift
         file_name = str(index//8) + ".npy"
         one_result = np_read_with_tensor_output(self.feature_dir + file_name)
-        one_image = np_read_with_tensor_output(self.image_dir + file_name)
+        # one_image = np_read_with_tensor_output(self.image_dir + file_name)
         image_index = index % 8
         feature = one_result[image_index]
-        image = one_image[image_index]
+        # image = one_image[image_index]
         feature = F.softmax(feature, dim=0)
-        feature[feature>0.99] = 1
-        feature[feature<0.01] = 0
-        feature = torch.cat((image, feature), dim=0)
+        # feature[feature>0.99] = 1
+        # feature[feature<0.01] = 0
+        # feature = torch.cat((image, feature), dim=0)
         # feature = feature.reshape((-1))
         annotation = self.annotations[index]
         return tuple((feature, annotation))
