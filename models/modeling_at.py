@@ -326,7 +326,7 @@ class ActiveTestVisionTransformer(nn.Module):
         estimates = self.head(x[:, 0])
         estimates = estimates.reshape(estimates.shape[0])
         if labels is not None:
-            loss = self.loss_function(estimates, labels)
+            loss = 100 * self.loss_function(estimates, labels)
             return loss
         else:
             return estimates, attn_weights
@@ -334,9 +334,9 @@ class ActiveTestVisionTransformer(nn.Module):
     def load_from(self, weights, requires_grad = False):
         with torch.no_grad():
             if self.zero_head:
-                nn.init.zeros_(self.head.weight)
+                nn.init.kaiming_uniform_(self.head.weight)
                 nn.init.zeros_(self.head.bias)
-                nn.init.zeros_(self.transformer.embeddings.patch_embeddings.weight)
+                nn.init.kaiming_uniform_(self.transformer.embeddings.patch_embeddings.weight)
                 nn.init.zeros_(self.transformer.embeddings.patch_embeddings.bias)
             else:
                 self.head.weight.copy_(np2th(weights["head/kernel"]).t())

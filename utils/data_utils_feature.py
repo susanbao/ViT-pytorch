@@ -27,6 +27,7 @@ class FeatureDataset(Dataset):
     def __init__(self, input_dir, annotation_dir, feature_path, loss_type, length = 0, shift = 0):
         self.annotations = np_read_with_tensor_output(annotation_dir)
         self.annotations = (self.annotations - normalize_list[loss_type][0])/normalize_list[loss_type][1]
+        # self.annotations = torch.log(self.annotations)
         self.input_dir = input_dir
         self.feature_dir = feature_path
         self.lens = self.annotations.shape[0] if length == 0 else length
@@ -44,6 +45,7 @@ class FeatureDataset(Dataset):
         feature = feature.permute(1,0,2)
         feature = feature.reshape((feature.shape[0], -1))
         feature = feature[selected_idxs]
+        feature = (feature - feature.mean()) / feature.std()
         # feature[21:,:] = 0.0
         annotation = self.annotations[index+self.shift]
         return tuple((feature, annotation))

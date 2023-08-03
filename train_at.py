@@ -149,6 +149,7 @@ def train(args, model):
                                 lr=args.learning_rate,
                                 momentum=0.9,
                                 weight_decay=args.weight_decay)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     t_total = args.num_steps
     if args.decay_type == "cosine":
         scheduler = WarmupCosineSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=t_total)
@@ -231,7 +232,8 @@ def train(args, model):
 
                 if global_step % t_total == 0:
                     break
-                wandb.log({"loss":loss, "val_loss": accuracy}, step=global_step)
+                wandb.log({"loss":loss, "val_loss": accuracy, "lr": optimizer.param_groups[0]['lr']}, step=global_step)
+                wandb.log(model.state_dict())
         losses.reset()
         if global_step % t_total == 0:
             break
