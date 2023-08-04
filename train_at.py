@@ -231,7 +231,7 @@ def train(args, model):
 
                 if global_step % t_total == 0:
                     break
-                wandb.log({"loss":loss, "val_loss": accuracy}, step=global_step)
+                wandb.log({"loss":loss, "val_loss": accuracy, "lr": optimizer.param_groups[0]['lr']}, step=global_step)
                 wandb.log(model.state_dict())
         losses.reset()
         if global_step % t_total == 0:

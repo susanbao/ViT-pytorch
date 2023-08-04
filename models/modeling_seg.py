@@ -13,7 +13,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-from torch.nn import CrossEntropyLoss, Dropout, Softmax, Linear, Conv2d, LayerNorm
+from torch.nn import CrossEntropyLoss, Dropout, Softmax, Linear, Conv2d, LayerNorm, ReLU
 from torch.nn.modules.utils import _pair
 from scipy import ndimage
 
@@ -264,6 +264,24 @@ class Transformer(nn.Module):
         encoded, attn_weights = self.encoder(embedding_output)
         return encoded, attn_weights
 
+class FirstLinearLayer(nn.Module):
+    def __init__(self, input_dim, output_dim):
+        super(FirstLinearLayer, self).__init__()
+        self.linear = Linear(input_dim, output_dim)
+        self.norm = LayerNorm(output_dim)
+        self.relu = ReLU(output_dim)
+        self.init_parameters()
+    
+    def init_parameters(self):
+        nn.init.kaiming_uniform_(self.linear.weight)
+        nn.init.zeros_(self.linear.bias)
+    
+    def forward(self, x):
+        x = self.linear(x)
+        x = self.norm(x)
+        x = self.relu(x)
+        return x
+
 
 class ActiveTestVisionTransformer(nn.Module):
     def __init__(self, config, img_size=480, num_classes=1, zero_head=True, vis=False):
@@ -271,32 +289,42 @@ class ActiveTestVisionTransformer(nn.Module):
         self.num_classes = num_classes
         self.zero_head = zero_head
         self.classifier = config.classifier
+        self.inter_dim = num_classes*10
 
         self.transformer = Transformer(config, img_size, vis)
-        self.head = Linear(config.hidden_size, num_classes)
+        self.head = FirstLinearLayer(config.hidden_size, self.inter_dim)
+        self.whole_head = Linear(self.inter_dim, num_classes)
+        self.single_head = Linear(self.inter_dim, num_classes)
         self.loss_function = torch.nn.SmoothL1Loss(reduction='mean')
+        self.l1_loss_function = torch.nn.L1Loss(reduction='mean')
 
     def forward(self, x, labels=None):
         x, attn_weights = self.transformer(x)
-        estimates = self.head(x[:, 0])
+        x = self.head(x)
+        whole_estimates = self.whole_head(x[:,0])
 
         if labels is not None:
-            loss = 100 * self.loss_function(estimates, labels)
+            single_estimates = self.single_head(x[:,1:]).squeeze(dim=2)
+            loss = self.loss_function(whole_estimates.squeeze(dim=1), labels[:,0]) + self.l1_loss_function(single_estimates, labels[:,1:])
+            + 0.01 * self.l1_loss_function(whole_estimates, single_estimates.mean(dim=1))
+            loss = 100 * loss
             return loss
         else:
-            return estimates, attn_weights
+            return whole_estimates, attn_weights
 
     def load_from(self, weights, requires_grad = False):
         with torch.no_grad():
             if self.zero_head:
-                nn.init.zeros_(self.head.weight)
-                nn.init.zeros_(self.head.bias)
-                nn.init.zeros_(self.transformer.embeddings.patch_embeddings.weight)
+                nn.init.kaiming_uniform_(self.whole_head.weight)
+                nn.init.zeros_(self.whole_head.bias)
+                nn.init.kaiming_uniform_(self.single_head.weight)
+                nn.init.zeros_(self.single_head.bias)
+                nn.init.kaiming_uniform_(self.transformer.embeddings.patch_embeddings.weight)
                 nn.init.zeros_(self.transformer.embeddings.patch_embeddings.bias)
-                nn.init.zeros_(self.transformer.embeddings.cls_token)
+                nn.init.kaiming_uniform_(self.transformer.embeddings.cls_token)
             else:
-                self.head.weight.copy_(np2th(weights["head/kernel"]).t())
-                self.head.bias.copy_(np2th(weights["head/bias"]).t())
+                # self.head.weight.copy_(np2th(weights["head/kernel"]).t())
+                # self.head.bias.copy_(np2th(weights["head/bias"]).t())
                 self.transformer.embeddings.patch_embeddings.weight.copy_(np2th(weights["embedding/kernel"], conv=True))
                 self.transformer.embeddings.patch_embeddings.bias.copy_(np2th(weights["embedding/bias"]))
                 self.transformer.embeddings.cls_token.copy_(np2th(weights["cls"]))
