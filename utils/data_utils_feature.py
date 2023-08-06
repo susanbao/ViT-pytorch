@@ -29,7 +29,8 @@ class FeatureDataset(Dataset):
         self.annotations = np_read_with_tensor_output(annotation_dir)
         # self.annotations = (self.annotations - normalize[0])/normalize[1]
         self.annotations[self.annotations < 0.01] = 0.01
-        self.annotations = torch.log(self.annotations)
+        # self.annotations = torch.log(self.annotations)
+        self.annotations = 10 * self.annotations
         self.feature_dir = input_dir + "/output/"
         self.image_dir = input_dir + "/image/"
         self.loss_dir = input_dir + "/loss/"
@@ -48,15 +49,17 @@ class FeatureDataset(Dataset):
         feature = F.softmax(feature, dim=0)
         feature[feature>0.99] = 1
         feature[feature<0.01] = 0
-        feature = torch.cat((image, feature), dim=0)
+        entropy = torch.sum(torch.mul(-feature, torch.log(feature + 1e-20)), dim=0).unsqueeze(dim=0)
+        feature = torch.cat((image, feature, entropy), dim=0)
         annotation = self.annotations[index]
         losses = np_read_with_tensor_output(self.loss_dir + file_name)
         loss = losses[image_index]
         loss = torch.unsqueeze(loss, dim=0)
         loss = self.avgpool(loss)
         loss = torch.flatten(loss)
-        loss[loss < 0.001] = 0.001
-        loss = torch.log(loss)
+        # loss[loss < 0.001] = 0.001
+        # loss = torch.log(loss)
+        loss = 10 * loss
         annotation = torch.cat((annotation.unsqueeze(0), loss), dim=0)
         return tuple((feature, annotation))
     
