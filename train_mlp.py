@@ -131,14 +131,14 @@ class ResNetRegression(nn.Module):
         # Modify the first layer to accommodate the specified input_channels
         self.resnet.conv1 = nn.Conv2d(input_channels, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.resnet.fc = nn.Linear(512, output_size)  # Change the fully connected layer to output_size units
-        self.loss_function = torch.nn.MSELoss(reduction='mean')
+        self.loss_function = torch.nn.SmoothL1Loss(reduction='mean')
         nn.init.kaiming_uniform_(self.resnet.conv1.weight)
         nn.init.kaiming_uniform_(self.resnet.fc.weight)
 
     def forward(self, x, labels=None):
         x = self.resnet(x)
         if labels is not None:
-            loss = self.loss_function(x, labels)
+            loss = 100 * self.loss_function(x, labels)
             return loss
         else:
             return x, None
@@ -177,8 +177,8 @@ def setup(args):
     config = CONFIGS[args.model_type]
     config.input_feature_dim = args.input_feature_dim
     config.ash_per = args.ash_per
-    # model = ResNetRegression(input_channels = 21, output_size = 1)
-    model = MLP(900, [100,10], output_size = 1)
+    model = ResNetRegression(input_channels = 25, output_size = 1)
+    # model = MLP(900, [100,10], output_size = 1)
     # model.load_from(np.load(args.pretrained_dir), requires_grad = args.enable_backbone_grad)
     # model.load_state_dict(torch.from_numpy(np.load(args.pretrained_dir)))
     model.to(args.device)
@@ -222,7 +222,7 @@ def valid(args, model, writer, test_loader, global_step):
                           bar_format="{l_bar}{r_bar}",
                           dynamic_ncols=True,
                           disable=args.local_rank not in [-1, 0])
-    loss_fct = torch.nn.MSELoss(reduction='mean')
+    loss_fct = torch.nn.L1Loss(reduction='mean')
     for step, batch in enumerate(epoch_iterator):
         batch = tuple(t.to(args.device) for t in batch)
         x, y = batch

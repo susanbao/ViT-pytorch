@@ -52,15 +52,15 @@ class FeatureDataset(Dataset):
         entropy = torch.sum(torch.mul(-feature, torch.log(feature + 1e-20)), dim=0).unsqueeze(dim=0)
         feature = torch.cat((image, feature, entropy), dim=0)
         annotation = self.annotations[index]
-        losses = np_read_with_tensor_output(self.loss_dir + file_name)
-        loss = losses[image_index]
-        loss = torch.unsqueeze(loss, dim=0)
-        loss = self.avgpool(loss)
-        loss = torch.flatten(loss)
+        # losses = np_read_with_tensor_output(self.loss_dir + file_name)
+        # loss = losses[image_index]
+        # loss = torch.unsqueeze(loss, dim=0)
+        # loss = self.avgpool(loss)
+        # loss = torch.flatten(loss)
         # loss[loss < 0.001] = 0.001
         # loss = torch.log(loss)
-        loss = 10 * loss
-        annotation = torch.cat((annotation.unsqueeze(0), loss), dim=0)
+        # loss = 10 * loss
+        # annotation = torch.cat((annotation.unsqueeze(0), loss), dim=0)
         return tuple((feature, annotation))
     
     def __len__(self):
