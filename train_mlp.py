@@ -177,8 +177,8 @@ def setup(args):
     config = CONFIGS[args.model_type]
     config.input_feature_dim = args.input_feature_dim
     config.ash_per = args.ash_per
-    model = ResNetRegression(input_channels = 25, output_size = 1)
-    # model = MLP(900, [100,10], output_size = 1)
+    # model = ResNetRegression(input_channels = 25, output_size = 1)
+    model = MLP(900, [100,10], output_size = 1)
     # model.load_from(np.load(args.pretrained_dir), requires_grad = args.enable_backbone_grad)
     # model.load_state_dict(torch.from_numpy(np.load(args.pretrained_dir)))
     model.to(args.device)
