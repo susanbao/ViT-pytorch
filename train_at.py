@@ -17,10 +17,10 @@ from torch.utils.tensorboard import SummaryWriter
 from apex import amp
 from apex.parallel import DistributedDataParallel as DDP
 
-from models.modeling_seg import ActiveTestVisionTransformer, CONFIGS
+from models.modeling_seg import ActiveTestVisionTransformer, CONFIGS, FocalLoss
 from utils.scheduler import WarmupLinearSchedule, WarmupCosineSchedule
 from utils.data_utils_at import get_loader_at
-from utils.data_utils_feature import get_loader_feature
+from utils.data_utils_feature import get_loader_feature, tensor_ordinal_to_float
 from utils.dist_util import get_world_size
 import ipdb
 import json
@@ -109,16 +109,16 @@ def valid(args, model, writer, test_loader, global_step):
                           bar_format="{l_bar}{r_bar}",
                           dynamic_ncols=True,
                           disable=args.local_rank not in [-1, 0])
-    loss_fct = torch.nn.L1Loss(reduction='mean')
+    loss_fct = FocalLoss()
     for step, batch in enumerate(epoch_iterator):
         batch = tuple(t.to(args.device) for t in batch)
         x, y = batch
         with torch.no_grad():
             logits = model(x)[0]
 
-            eval_loss = loss_fct(logits, y)
+            eval_loss = loss_fct(logits, y[:,0])
             eval_losses.update(eval_loss.item())
-            all_preds.extend(logits.tolist())
+            all_preds.extend(tensor_ordinal_to_float(logits).tolist())
 
         epoch_iterator.set_description("Validating... (loss=%2.5f)" % eval_losses.val)
 
@@ -165,7 +165,8 @@ def train(args, model):
     if args.local_rank != -1:
         model = DDP(model, message_size=250000000, gradient_predivide_factor=get_world_size())
     
-    wandb.watch(model, log="all")
+    if args.enable_wandb:
+        wandb.watch(model, log="all")
 
     # Train!
     logger.info("***** Running training *****")
@@ -231,8 +232,9 @@ def train(args, model):
 
                 if global_step % t_total == 0:
                     break
-                wandb.log({"loss":loss, "val_loss": accuracy, "lr": optimizer.param_groups[0]['lr']}, step=global_step)
-                wandb.log(model.state_dict())
+                if args.enable_wandb:
+                    wandb.log({"loss":loss, "val_loss": accuracy, "lr": optimizer.param_groups[0]['lr']}, step=global_step)
+                    wandb.log(model.state_dict())
         losses.reset()
         if global_step % t_total == 0:
             break
@@ -309,6 +311,8 @@ def main():
                         help="Whether to use 16-bit float precision instead of 32-bit")
     parser.add_argument('--enable_backbone_grad', action='store_true',
                         help="Whether to enable the retraining of backbone")
+    parser.add_argument('--enable_wandb', action='store_true',
+                        help="Whether to enable wandb")
     args = parser.parse_args()
 
     # Setup CUDA, GPU & distributed training
@@ -334,23 +338,24 @@ def main():
     set_seed(args)
     
     # start a new wandb run to track this script
-    wandb.init(
-        # set the wandb project where this run will be logged
-        project="Bosch_active_testing",
-        config=args,
-        entity="susanbao",
-        notes=socket.gethostname(),
-        name=args.name,
-        job_type="training"
-    )
+    if args.enable_wandb:
+        wandb.init(
+            # set the wandb project where this run will be logged
+            project="Bosch_active_testing",
+            config=args,
+            entity="susanbao",
+            notes=socket.gethostname(),
+            name=args.name,
+            job_type="training"
+        )
 
     # Model & Tokenizer Setup
     args, model = setup(args)
 
     # Training
     train(args, model)
-    
-    wandb.finish()
+    if args.enable_wandb:
+        wandb.finish()
 
 
 if __name__ == "__main__":

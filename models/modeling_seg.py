@@ -32,6 +32,48 @@ FC_1 = "MlpBlock_3/Dense_1"
 ATTENTION_NORM = "LayerNorm_0"
 MLP_NORM = "LayerNorm_2"
 
+weight_count = torch.ones(50)
+weight_count[:21] = torch.tensor([450.0, 364, 216, 127,  89,  54,  52,  30,  22,  12,   8,   6,   3, 5,   4,   2,   1,   1,   1,   1,   1])
+weight_count = weight_count/weight_count.sum()
+class_weight = 1/weight_count
+class_weight = class_weight / class_weight.sum()
+
+class FocalLoss(nn.Module):
+    def __init__(self, gamma=2, alpha=None, ignore_index=255, size_average=True):
+        super(FocalLoss, self).__init__()
+        self.gamma = gamma
+        self.size_average = size_average
+        self.CE_loss = CrossEntropyLoss(reduce=False, ignore_index=ignore_index, weight=alpha)
+
+    def forward(self, output, target):
+        logpt = self.CE_loss(output, target)
+        pt = torch.exp(-logpt)
+        loss = ((1-pt)**self.gamma) * logpt
+        if self.size_average:
+            return loss.mean()
+        return loss.sum()
+
+class OrdinalFocalLoss(nn.Module):
+    def __init__(self, alpha=1, gamma=2, num_classes=3):
+        super(OrdinalFocalLoss, self).__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.num_classes = num_classes
+
+    def forward(self, inputs, ordinal_targets):
+        # Apply softmax to the model outputs
+        probs = torch.softmax(inputs, dim=1)
+
+        # Compute ordinal focal loss
+        loss = 0
+        for i in range(self.num_classes):
+            y_i = (ordinal_targets >= i).float()  # Convert ordinal values to binary
+            p_i = probs[:, i]
+            focal_weight = (1 - p_i).pow(self.gamma)  # Focal weight
+            loss_i = -self.alpha * (y_i * torch.log(p_i) + (1 - y_i) * torch.log(1 - p_i))
+            loss += focal_weight * loss_i
+
+        return loss.mean()
 
 def np2th(weights, conv=False):
     """Possibly convert HWIO to OIHW."""
@@ -284,7 +326,7 @@ class FirstLinearLayer(nn.Module):
 
 
 class ActiveTestVisionTransformer(nn.Module):
-    def __init__(self, config, img_size=480, num_classes=1, zero_head=True, vis=False):
+    def __init__(self, config, img_size=480, num_classes=50, zero_head=True, vis=False):
         super(ActiveTestVisionTransformer, self).__init__()
         self.num_classes = num_classes
         self.zero_head = zero_head
@@ -295,8 +337,7 @@ class ActiveTestVisionTransformer(nn.Module):
         self.head = FirstLinearLayer(config.hidden_size, self.inter_dim)
         self.whole_head = Linear(self.inter_dim, num_classes)
         self.single_head = Linear(self.inter_dim, num_classes)
-        self.loss_function = torch.nn.SmoothL1Loss(reduction='mean')
-        self.l1_loss_function = torch.nn.L1Loss(reduction='mean')
+        self.focal_loss = FocalLoss()
 
     def forward(self, x, labels=None):
         x, attn_weights = self.transformer(x)
@@ -304,10 +345,11 @@ class ActiveTestVisionTransformer(nn.Module):
         whole_estimates = self.whole_head(x[:,0])
 
         if labels is not None:
-            single_estimates = self.single_head(x[:,1:]).squeeze(dim=2)
-            loss = self.loss_function(whole_estimates.squeeze(dim=1), labels[:,0]) + self.l1_loss_function(single_estimates, labels[:,1:])
-            + 0.01 * self.l1_loss_function(whole_estimates, single_estimates.mean(dim=1))
-            loss = 100 * loss
+            patch_estimates = self.single_head(x[:,1:])
+            patch_estimates = patch_estimates.reshape((-1,patch_estimates.shape[2]))
+            patch_labels = labels[:,1:].reshape(-1)
+            loss = self.focal_loss(whole_estimates, labels[:,0]) + self.focal_loss(patch_estimates, patch_labels)
+            # loss = 100 * loss
             return loss
         else:
             return whole_estimates, attn_weights
