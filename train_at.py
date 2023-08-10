@@ -53,9 +53,9 @@ def simple_accuracy(preds, labels):
     return (preds == labels).mean()
 
 
-def save_model(args, model):
+def save_model(args, model, global_step):
     model_to_save = model.module if hasattr(model, 'module') else model
-    model_checkpoint = os.path.join(args.output_dir, "%s_checkpoint.bin" % args.name)
+    model_checkpoint = os.path.join(args.output_dir, f"{args.name}_checkpoint_{global_step}.bin")
     torch.save(model_to_save.state_dict(), model_checkpoint)
     logger.info("Saved model checkpoint to [DIR: %s]", args.output_dir)
 
@@ -109,7 +109,7 @@ def valid(args, model, writer, test_loader, global_step):
                           bar_format="{l_bar}{r_bar}",
                           dynamic_ncols=True,
                           disable=args.local_rank not in [-1, 0])
-    loss_fct = FocalLoss()
+    loss_fct = torch.nn.CrossEntropyLoss(weight = model.class_weight.to(args.device))
     for step, batch in enumerate(epoch_iterator):
         batch = tuple(t.to(args.device) for t in batch)
         x, y = batch
@@ -223,11 +223,11 @@ def train(args, model):
                 if global_step % args.eval_every == 0 and args.local_rank in [-1, 0]:
                     accuracy, all_preds = valid(args, model, writer, test_loader, global_step)
                     if best_acc > accuracy:
-                        save_model(args, model)
                         best_acc = accuracy
-                        path = os.path.join(args.output_dir, "%s_losses.json" % args.name)
-                        json_objects = {"losses": all_preds}
-                        write_one_results(path, json_objects)
+                    save_model(args, model, global_step)
+                    path = os.path.join(args.output_dir, f"{args.name}_losses_{global_step}.json")
+                    json_objects = {"losses": all_preds}
+                    write_one_results(path, json_objects)
                     model.train()
 
                 if global_step % t_total == 0:

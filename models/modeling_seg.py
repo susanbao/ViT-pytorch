@@ -32,12 +32,6 @@ FC_1 = "MlpBlock_3/Dense_1"
 ATTENTION_NORM = "LayerNorm_0"
 MLP_NORM = "LayerNorm_2"
 
-weight_count = torch.ones(50)
-weight_count[:21] = torch.tensor([450.0, 364, 216, 127,  89,  54,  52,  30,  22,  12,   8,   6,   3, 5,   4,   2,   1,   1,   1,   1,   1])
-weight_count = weight_count/weight_count.sum()
-class_weight = 1/weight_count
-class_weight = class_weight / class_weight.sum()
-
 class FocalLoss(nn.Module):
     def __init__(self, gamma=2, alpha=None, ignore_index=255, size_average=True):
         super(FocalLoss, self).__init__()
@@ -339,6 +333,15 @@ class ActiveTestVisionTransformer(nn.Module):
         self.single_head = Linear(self.inter_dim, num_classes)
         self.focal_loss = FocalLoss()
 
+        weight_count = torch.ones(50)
+        weight_count[:21] = torch.tensor([450.0, 364, 216, 127,  89,  54,  52,  30,  22,  12,   8,   6,   3, 5,   4,   2,   1,   1,   1,   1,   1])
+        weight_count = weight_count/weight_count.sum()
+        class_weight = 1/weight_count
+        class_weight = class_weight / class_weight.sum()
+        self.class_weight = class_weight
+
+        self.entropy_loss = CrossEntropyLoss(weight=class_weight)
+
     def forward(self, x, labels=None):
         x, attn_weights = self.transformer(x)
         x = self.head(x)
@@ -353,6 +356,13 @@ class ActiveTestVisionTransformer(nn.Module):
             return loss
         else:
             return whole_estimates, attn_weights
+    
+    def forward_patch_result(self, x):
+        x, attn_weights = self.transformer(x)
+        x = self.head(x)
+        patch_estimates = self.single_head(x[:,1:])
+        patch_estimates = patch_estimates.reshape((-1,patch_estimates.shape[2]))
+        return patch_estimates
 
     def load_from(self, weights, requires_grad = False):
         with torch.no_grad():

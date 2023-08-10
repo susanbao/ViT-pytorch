@@ -8,6 +8,7 @@ from torchvision import transforms, datasets
 from torch.utils.data import DataLoader, RandomSampler, DistributedSampler, SequentialSampler, TensorDataset, Dataset
 import json
 import torch.nn.functional as F
+import torchvision.transforms as T
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ def tensor_ordinal_to_float(input_logits):
 
 class FeatureDataset(Dataset):
     """ Use feature from other model as dataset """
-    def __init__(self, input_dir, annotation_dir, length = 0, shift = 0):
+    def __init__(self, input_dir, annotation_dir, length = 0, shift = 0, aug = True):
         self.annotations = np_read_with_tensor_output(annotation_dir)
         self.annotations = tensor_float_to_ordinal(self.annotations)
         # self.annotations = (self.annotations - normalize[0])/normalize[1]
@@ -56,6 +57,9 @@ class FeatureDataset(Dataset):
         self.lens = self.annotations.shape[0] if length == 0 else length
         self.shift = shift
         self.avgpool = torch.nn.AdaptiveAvgPool2d((30,30))
+        self.hflipper = T.RandomHorizontalFlip(p=0.5)
+        self.vflipper = T.RandomVerticalFlip(p=0.5)
+        self.aug = aug
     
     def __getitem__(self, index):
         index = index + self.shift
@@ -70,6 +74,9 @@ class FeatureDataset(Dataset):
         feature[feature<0.01] = 0
         entropy = torch.sum(torch.mul(-feature, torch.log(feature + 1e-20)), dim=0).unsqueeze(dim=0)
         feature = torch.cat((image, feature, entropy), dim=0)
+        if self.aug:
+            feature = self.hflipper(feature)
+            feature = self.vflipper(feature)
         annotation = self.annotations[index]
         losses = np_read_with_tensor_output(self.loss_dir + file_name)
         loss = losses[image_index]
@@ -99,7 +106,7 @@ def get_loader_feature(args):
     split = "val"
     inputs_path = model_data_path + split
     store_preprocess_annotations_path = model_data_path + split + "/image_true_losses.npy"
-    test_datasets = FeatureDataset(inputs_path, store_preprocess_annotations_path)
+    test_datasets = FeatureDataset(inputs_path, store_preprocess_annotations_path, aug=False)
 
     if args.local_rank == 0:
         torch.distributed.barrier()
