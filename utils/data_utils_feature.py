@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader, RandomSampler, DistributedSampler, Sequ
 import json
 import torch.nn.functional as F
 import torchvision.transforms as T
+import random
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +58,6 @@ class FeatureDataset(Dataset):
         self.lens = self.annotations.shape[0] if length == 0 else length
         self.shift = shift
         self.avgpool = torch.nn.AdaptiveAvgPool2d((30,30))
-        self.hflipper = T.RandomHorizontalFlip(p=0.5)
-        self.vflipper = T.RandomVerticalFlip(p=0.5)
         self.aug = aug
     
     def __getitem__(self, index):
@@ -74,14 +73,18 @@ class FeatureDataset(Dataset):
         feature[feature<0.01] = 0
         entropy = torch.sum(torch.mul(-feature, torch.log(feature + 1e-20)), dim=0).unsqueeze(dim=0)
         feature = torch.cat((image, feature, entropy), dim=0)
-        if self.aug:
-            feature = self.hflipper(feature)
-            feature = self.vflipper(feature)
         annotation = self.annotations[index]
         losses = np_read_with_tensor_output(self.loss_dir + file_name)
         loss = losses[image_index]
         loss = torch.unsqueeze(loss, dim=0)
         loss = self.avgpool(loss)
+        if self.aug:
+            if random.random()>0.5:
+                feature = torch.flip(feature, [1])
+                loss = torch.flip(loss, [1])
+            if random.random()>0.5:
+                feature = torch.flip(feature, [2])
+                loss = torch.flip(loss, [2])
         loss = torch.flatten(loss)
         loss = tensor_float_to_ordinal(loss)
         # loss[loss < 0.001] = 0.001
