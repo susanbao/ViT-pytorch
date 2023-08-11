@@ -19,6 +19,8 @@ from scipy import ndimage
 
 import models.configs as configs
 
+from utils.CumulativeLinkLoss import CumulativeLinkLoss
+
 
 logger = logging.getLogger(__name__)
 
