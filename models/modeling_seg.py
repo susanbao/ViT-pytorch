@@ -322,7 +322,7 @@ class FirstLinearLayer(nn.Module):
 
 
 class ActiveTestVisionTransformer(nn.Module):
-    def __init__(self, config, img_size=480, num_classes=50, zero_head=True, vis=False):
+    def __init__(self, config, img_size=240, num_classes=50, zero_head=True, vis=False):
         super(ActiveTestVisionTransformer, self).__init__()
         self.num_classes = num_classes
         self.zero_head = zero_head
@@ -417,6 +417,7 @@ class ActiveTestVisionTransformer(nn.Module):
 
 
 CONFIGS = {
+    'ViT-B_8': configs.get_b8_config(),
     'ViT-B_16': configs.get_b16_config(),
     'ViT-B_32': configs.get_b32_config(),
     'ViT-L_16': configs.get_l16_config(),
