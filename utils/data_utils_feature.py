@@ -17,9 +17,13 @@ normalize = [0.05269893, 0.053517897]
 
 num_classes = 51
 
-conv_thresholds = torch.linspace(0, 1, steps=num_classes)
+conv_thresholds = torch.linspace(0, 1.5, steps=num_classes)
 
 conv_values = (conv_thresholds[1:] + conv_thresholds[:-1]) / 2
+
+conv_thresholds_patch = torch.linspace(0, 10, steps=num_classes)
+
+conv_values_patch = (conv_thresholds_patch[1:] + conv_thresholds_patch[:-1]) / 2
 
 def np_read_with_tensor_output(file):
     with open(file, "rb") as outfile:
@@ -39,8 +43,18 @@ def tensor_float_to_ordinal(inputs):
 
 def tensor_ordinal_to_float(input_logits):
     classification = input_logits.argmax(dim=1)
-    results = torch.zeros_like(classification, dtype=torch.float32)
     results = conv_values[classification]
+    return results
+
+def tensor_float_to_ordinal_patch(inputs):
+    ordinal_classes = torch.zeros_like(inputs, dtype=torch.long)
+    for i, threshold in enumerate(conv_thresholds_patch[:-1]):
+        ordinal_classes[inputs >= threshold] = i
+    return ordinal_classes
+
+def tensor_ordinal_to_float_patch(input_logits):
+    classification = input_logits.argmax(dim=1)
+    results = conv_values_patch[classification]
     return results
 
 class FeatureDataset(Dataset):
@@ -59,15 +73,18 @@ class FeatureDataset(Dataset):
         self.shift = shift
         self.avgpool = torch.nn.AdaptiveAvgPool2d((30,30))
         self.aug = aug
+        self.splited_location_list = [[0,240,0,240], [0,240,240,480],[240,480,0,240],[240,480,240,480]]
     
     def __getitem__(self, index):
         index = index + self.shift
-        file_name = str(index//8) + ".npy"
+        file_name = str(index//32) + ".npy"
         one_result = np_read_with_tensor_output(self.feature_dir + file_name)
         one_image = np_read_with_tensor_output(self.image_dir + file_name)
-        image_index = index % 8
-        feature = one_result[image_index]
-        image = one_image[image_index]
+        image_index = (index % 32) // 4
+        splited_image_index = (index % 32) % 4
+        location = self.splited_location_list[splited_image_index]
+        feature = one_result[image_index, :, location[0]:location[1],location[2]:location[3]]
+        image = one_image[image_index,:,location[0]:location[1],location[2]:location[3]]
         feature = F.softmax(feature, dim=0)
         feature[feature>0.99] = 1
         feature[feature<0.01] = 0
@@ -75,7 +92,7 @@ class FeatureDataset(Dataset):
         feature = torch.cat((image, feature, entropy), dim=0)
         annotation = self.annotations[index]
         losses = np_read_with_tensor_output(self.loss_dir + file_name)
-        loss = losses[image_index]
+        loss = losses[image_index, location[0]:location[1],location[2]:location[3]]
         loss = torch.unsqueeze(loss, dim=0)
         loss = self.avgpool(loss)
         if self.aug:
@@ -103,12 +120,12 @@ def get_loader_feature(args):
     model_data_path = args.data_dir
     split = "train"
     inputs_path = model_data_path + split
-    store_preprocess_annotations_path = model_data_path + split + "/image_true_losses.npy"
+    store_preprocess_annotations_path = model_data_path + split + "/image_split_2_2_true_losses.npy"
     train_datasets = FeatureDataset(inputs_path, store_preprocess_annotations_path)
     
     split = "val"
     inputs_path = model_data_path + split
-    store_preprocess_annotations_path = model_data_path + split + "/image_true_losses.npy"
+    store_preprocess_annotations_path = model_data_path + split + "/image_split_2_2_true_losses.npy"
     test_datasets = FeatureDataset(inputs_path, store_preprocess_annotations_path, aug=False)
 
     if args.local_rank == 0:
