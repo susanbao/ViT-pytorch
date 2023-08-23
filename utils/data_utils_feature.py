@@ -21,9 +21,9 @@ conv_thresholds = torch.linspace(0, 1, steps=num_classes)
 
 conv_values = (conv_thresholds[1:] + conv_thresholds[:-1]) / 2
 
-conv_thresholds_patch = torch.linspace(0, 10, steps=num_classes)
+conv_thresholds_patch = torch.linspace(0, 10, steps=(num_classes-1))
 
-conv_values_patch = (conv_thresholds_patch[1:] + conv_thresholds_patch[:-1]) / 2
+conv_values_patch = conv_thresholds_patch
 
 def np_read_with_tensor_output(file):
     with open(file, "rb") as outfile:
@@ -48,7 +48,7 @@ def tensor_ordinal_to_float(input_logits):
 
 def tensor_float_to_ordinal_patch(inputs):
     ordinal_classes = torch.zeros_like(inputs, dtype=torch.long)
-    for i, threshold in enumerate(conv_thresholds_patch[:-1]):
+    for i, threshold in enumerate(conv_thresholds_patch):
         ordinal_classes[inputs >= threshold] = i
     return ordinal_classes
 
@@ -69,6 +69,7 @@ class FeatureDataset(Dataset):
         self.feature_dir = input_dir + "/output/"
         self.image_dir = input_dir + "/image/"
         self.loss_dir = input_dir + "/loss/"
+        self.grad_dir = input_dir + "/grad/"
         self.lens = self.annotations.shape[0] if length == 0 else length
         self.shift = shift
         self.avgpool = torch.nn.AdaptiveAvgPool2d((60,60))
@@ -90,9 +91,11 @@ class FeatureDataset(Dataset):
         feature[feature<0.01] = 0
         entropy = torch.sum(torch.mul(-feature, torch.log(feature + 1e-20)), dim=0).unsqueeze(dim=0)
         feature = torch.cat((image, feature, entropy), dim=0)
-        entropy_patch = self.avgpool(entropy)
-        entropy_patch = entropy_patch.view(-1)
-        _, top_indices = torch.topk(entropy_patch, k=self.patch_nums)
+        grad = np_read_with_tensor_output(self.grad_dir + file_name)
+        grad = grad[image_index].unsqueeze(dim=0)
+        grad_patch = self.avgpool(grad)
+        grad_patch = grad_patch.view(-1)
+        _, top_indices = torch.topk(grad_patch, k=self.patch_nums)
         top_indices, _ =torch.sort(top_indices)
         patches = feature.unfold(1, self.patch_size, self.patch_size).unfold(2, self.patch_size, self.patch_size)
         patches = patches.reshape((patches.shape[0], -1, self.patch_size, self.patch_size))
@@ -117,9 +120,6 @@ class FeatureDataset(Dataset):
                 loss = torch.flip(loss, [2])
         loss = torch.flatten(loss)
         loss = tensor_float_to_ordinal_patch(loss)
-        # loss[loss < 0.001] = 0.001
-        # loss = torch.log(loss)
-        # loss = 10 * loss
         annotation = torch.cat((annotation.unsqueeze(0), loss), dim=0)
         return tuple((patches, annotation))
     
@@ -132,13 +132,15 @@ class FeatureDataset(Dataset):
         feature = one_result[image_index]
         image = one_image[image_index]
         feature = F.softmax(feature, dim=0)
-        # feature[feature>0.99] = 1
-        # feature[feature<0.01] = 0
+        feature[feature>0.99] = 1
+        feature[feature<0.01] = 0
         entropy = torch.sum(torch.mul(-feature, torch.log(feature + 1e-20)), dim=0).unsqueeze(dim=0)
         feature = torch.cat((image, feature, entropy), dim=0)
-        entropy_patch = self.avgpool(entropy)
-        entropy_patch = entropy_patch.view(-1)
-        _, top_indices = torch.topk(entropy_patch, k=self.patch_nums)
+        grad = np_read_with_tensor_output(self.grad_dir + file_name)
+        grad = grad[image_index].unsqueeze(dim=0)
+        grad_patch = self.avgpool(grad)
+        grad_patch = grad_patch.view(-1)
+        _, top_indices = torch.topk(grad_patch, k=self.patch_nums)
         top_indices, _ =torch.sort(top_indices)
         patches = feature.unfold(1, self.patch_size, self.patch_size).unfold(2, self.patch_size, self.patch_size)
         patches = patches.reshape((patches.shape[0], -1, self.patch_size, self.patch_size))
