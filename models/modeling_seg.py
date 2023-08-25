@@ -341,10 +341,10 @@ class ActiveTestVisionTransformer(nn.Module):
         # class_weight = 1/weight_count
         # class_weight = class_weight / class_weight.sum()
         # self.class_weight = class_weight
-        class_weight = torch.ones(50) * 20
-        class_weight[:13] = torch.tensor([1,  2,   2,   2,   2,   2,   5,    5,
-          5,    5,    5,    5,    5])
-        class_weight[40:] = torch.tensor([50,50,50,50,100,100,200,200,500,1000])
+        class_weight = torch.ones(50) * 100
+        class_weight[:13] = torch.tensor([1,  10,   10,   20,   20,   20,   50,    50,
+          50,    50,    50,    50,    50])
+        class_weight[40:] = torch.tensor([200,200,200,200,500,500,1000,1000,5000,10000])
 
         self.entropy_loss = CrossEntropyLoss(weight=class_weight)
         self.focal_loss_weight = FocalLoss(alpha = class_weight, gamma=4, size_average=False)
