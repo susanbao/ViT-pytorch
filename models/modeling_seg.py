@@ -334,21 +334,8 @@ class ActiveTestVisionTransformer(nn.Module):
         self.whole_head = Linear(self.inter_dim, num_classes)
         self.single_head = Linear(self.inter_dim, num_classes)
         
-        # weight_count = torch.ones(50)
-        # weight_count[:13] = torch.tensor([10,  5,   5,   5,   5,   5,   2,    2,
-        #   2,    2,    2,    2,    2])
-        # weight_count = weight_count/weight_count.sum()
-        # class_weight = 1/weight_count
-        # class_weight = class_weight / class_weight.sum()
-        # self.class_weight = class_weight
-        class_weight = torch.ones(50) * 100
-        class_weight[:13] = torch.tensor([1,  10,   10,   20,   20,   20,   50,    50,
-          50,    50,    50,    50,    50])
-        class_weight[40:] = torch.tensor([200,200,200,200,500,500,1000,1000,5000,10000])
-
-        self.entropy_loss = CrossEntropyLoss(weight=class_weight)
-        self.focal_loss_weight = FocalLoss(alpha = class_weight, gamma=4, size_average=False)
         self.focal_loss = FocalLoss()
+        self.OrdinalFocalLoss = OrdinalFocalLoss(num_classes=50)
 
     def forward(self, x, labels=None):
         x, attn_weights = self.transformer(x)
@@ -359,7 +346,7 @@ class ActiveTestVisionTransformer(nn.Module):
             patch_estimates = self.single_head(x[:,1:])
             patch_estimates = patch_estimates.reshape((-1,patch_estimates.shape[2]))
             patch_labels = labels[:,1:].reshape(-1)
-            loss = self.focal_loss(whole_estimates, labels[:,0]) + self.focal_loss_weight(patch_estimates, patch_labels) / 100
+            loss = self.focal_loss(whole_estimates, labels[:,0]) + 10 * self.OrdinalFocalLoss(patch_estimates, patch_labels)
             # loss = 100 * loss
             return loss
         else:
