@@ -20,7 +20,7 @@ from scipy import ndimage
 import models.configs as configs
 
 from utils.CumulativeLinkLoss import CumulativeLinkLoss
-
+import collections
 
 logger = logging.getLogger(__name__)
 
@@ -346,8 +346,18 @@ class ActiveTestVisionTransformer(nn.Module):
             patch_estimates = self.single_head(x[:,1:])
             patch_estimates = patch_estimates.reshape((-1,patch_estimates.shape[2]))
             patch_labels = labels[:,1:].reshape(-1)
-            loss = self.focal_loss(whole_estimates, labels[:,0]) + 10 * self.OrdinalFocalLoss(patch_estimates, patch_labels)
-            # loss = 100 * loss
+            
+            weight = torch.ones(50)
+            counts = torch.bincount(patch_labels)
+            counts = torch.where(counts == 0, 1, counts)
+            weight[:counts.shape[0]] = counts
+            weight = 1 / weight
+            weight = weight * patch_labels.shape[0] / 10
+            weight_focal_loss = FocalLoss(alpha = weight)
+            weight_focal_loss = weight_focal_loss.to('cuda')
+            
+            loss = self.focal_loss(whole_estimates, labels[:,0]) + weight_focal_loss(patch_estimates, patch_labels)
+            # loss = self.focal_loss(whole_estimates, labels[:,0]) + 10 * self.OrdinalFocalLoss(patch_estimates, patch_labels)
             return loss
         else:
             return whole_estimates, attn_weights
