@@ -91,11 +91,19 @@ class FeatureDataset(Dataset):
         feature[feature<0.01] = 0
         entropy = torch.sum(torch.mul(-feature, torch.log(feature + 1e-20)), dim=0).unsqueeze(dim=0)
         feature = torch.cat((image, feature, entropy), dim=0)
-        grad = np_read_with_tensor_output(self.grad_dir + file_name)
-        grad = grad[image_index].unsqueeze(dim=0)
-        grad_patch = self.avgpool(grad)
-        grad_patch = grad_patch.view(-1)
-        _, top_indices = torch.topk(grad_patch, k=self.patch_nums)
+        # grad = np_read_with_tensor_output(self.grad_dir + file_name)
+        # grad = grad[image_index].unsqueeze(dim=0)
+        # grad_patch = self.avgpool(grad)
+        # grad_patch = grad_patch.view(-1)
+        # _, top_indices = torch.topk(grad_patch, k=self.patch_nums)
+        
+        losses = np_read_with_tensor_output(self.loss_dir + file_name)
+        loss = losses[image_index]
+        loss = torch.unsqueeze(loss, dim=0)
+        loss = self.avgpool(loss)
+        loss = torch.flatten(loss)
+        _, top_indices = torch.topk(loss, k=self.patch_nums)
+        
         top_indices, _ =torch.sort(top_indices)
         patches = feature.unfold(1, self.patch_size, self.patch_size).unfold(2, self.patch_size, self.patch_size)
         patches = patches.reshape((patches.shape[0], -1, self.patch_size, self.patch_size))
@@ -104,11 +112,7 @@ class FeatureDataset(Dataset):
                   patches.shape[3]).permute(0, 1, 3, 2, 4).contiguous().view(patches.shape[0], self.patch_nums_sqrt * self.patch_size, self.patch_nums_sqrt * self.patch_size)
 
         annotation = self.annotations[index]
-        losses = np_read_with_tensor_output(self.loss_dir + file_name)
-        loss = losses[image_index]
-        loss = torch.unsqueeze(loss, dim=0)
-        loss = self.avgpool(loss)
-        loss = torch.flatten(loss)
+        
         loss = loss[top_indices]
         loss = loss.reshape((1,self.patch_nums_sqrt,self.patch_nums_sqrt))
         if self.aug:
@@ -136,11 +140,19 @@ class FeatureDataset(Dataset):
         feature[feature<0.01] = 0
         entropy = torch.sum(torch.mul(-feature, torch.log(feature + 1e-20)), dim=0).unsqueeze(dim=0)
         feature = torch.cat((image, feature, entropy), dim=0)
-        grad = np_read_with_tensor_output(self.grad_dir + file_name)
-        grad = grad[image_index].unsqueeze(dim=0)
-        grad_patch = self.avgpool(grad)
-        grad_patch = grad_patch.view(-1)
-        _, top_indices = torch.topk(grad_patch, k=self.patch_nums)
+        # grad = np_read_with_tensor_output(self.grad_dir + file_name)
+        # grad = grad[image_index].unsqueeze(dim=0)
+        # grad_patch = self.avgpool(grad)
+        # grad_patch = grad_patch.view(-1)
+        # _, top_indices = torch.topk(grad_patch, k=self.patch_nums)
+        
+        losses = np_read_with_tensor_output(self.loss_dir + file_name)
+        loss = losses[image_index]
+        loss = torch.unsqueeze(loss, dim=0)
+        loss = self.avgpool(loss)
+        loss = torch.flatten(loss)
+        _, top_indices = torch.topk(loss, k=self.patch_nums)
+        
         top_indices, _ =torch.sort(top_indices)
         patches = feature.unfold(1, self.patch_size, self.patch_size).unfold(2, self.patch_size, self.patch_size)
         patches = patches.reshape((patches.shape[0], -1, self.patch_size, self.patch_size))
@@ -149,11 +161,7 @@ class FeatureDataset(Dataset):
                   patches.shape[3]).permute(0, 1, 3, 2, 4).contiguous().view(patches.shape[0], self.patch_nums_sqrt * self.patch_size, self.patch_nums_sqrt * self.patch_size)
 
         annotation = self.annotations[index]
-        losses = np_read_with_tensor_output(self.loss_dir + file_name)
-        loss = losses[image_index]
-        loss = torch.unsqueeze(loss, dim=0)
-        loss = self.avgpool(loss)
-        loss = torch.flatten(loss)
+        
         loss = loss[top_indices]
         loss = loss.reshape((1,self.patch_nums_sqrt,self.patch_nums_sqrt))
         if self.aug:

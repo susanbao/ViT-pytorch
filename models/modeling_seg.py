@@ -358,6 +358,7 @@ class ActiveTestVisionTransformer(nn.Module):
             
             loss = self.focal_loss(whole_estimates, labels[:,0]) + weight_focal_loss(patch_estimates, patch_labels)
             # loss = self.focal_loss(whole_estimates, labels[:,0]) + 10 * self.OrdinalFocalLoss(patch_estimates, patch_labels)
+            # loss = self.focal_loss(whole_estimates, labels[:,0]) + self.focal_loss(patch_estimates, patch_labels)
             return loss
         else:
             return whole_estimates, attn_weights
