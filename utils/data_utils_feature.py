@@ -17,11 +17,15 @@ normalize = [0.05269893, 0.053517897]
 
 num_classes = 51
 
-conv_thresholds = torch.linspace(0, 1.5, steps=num_classes)
+# PSPNet_VOC
+# conv_thresholds = torch.linspace(0, 1.5, steps=num_classes)
+# conv_thresholds_patch = torch.linspace(0, 10, steps=num_classes)
+
+# UNet_coco10k
+conv_thresholds = torch.linspace(0, 8, steps=num_classes)
+conv_thresholds_patch = torch.linspace(0, 24, steps=num_classes)
 
 conv_values = (conv_thresholds[1:] + conv_thresholds[:-1]) / 2
-
-conv_thresholds_patch = torch.linspace(0, 10, steps=num_classes)
 
 conv_values_patch = (conv_thresholds_patch[1:] + conv_thresholds_patch[:-1]) / 2
 
