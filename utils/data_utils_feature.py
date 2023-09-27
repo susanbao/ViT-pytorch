@@ -22,8 +22,12 @@ num_classes = 51
 # conv_thresholds_patch = torch.linspace(0, 10, steps=num_classes)
 
 # UNet_coco10k
+# conv_thresholds = torch.linspace(0, 8, steps=num_classes)
+# conv_thresholds_patch = torch.linspace(0, 24, steps=num_classes)
+
+# UNet_VOC
 conv_thresholds = torch.linspace(0, 8, steps=num_classes)
-conv_thresholds_patch = torch.linspace(0, 24, steps=num_classes)
+conv_thresholds_patch = torch.linspace(0, 22, steps=num_classes)
 
 conv_values = (conv_thresholds[1:] + conv_thresholds[:-1]) / 2
 
@@ -70,9 +74,10 @@ class FeatureDataset(Dataset):
         # self.annotations[self.annotations < 0.01] = 0.01
         # self.annotations = torch.log(self.annotations)
         # self.annotations = 10 * self.annotations
-        self.feature_dir = input_dir + "/output/"
+        self.feature_dir = input_dir + "/feature/"
         self.image_dir = input_dir + "/image/"
         self.loss_dir = input_dir + "/loss/"
+        self.entropy_dir = input_dir + "/entropy/"
         self.lens = self.annotations.shape[0] if length == 0 else length
         self.shift = shift
         self.avgpool = torch.nn.AdaptiveAvgPool2d((30,30))
@@ -86,8 +91,10 @@ class FeatureDataset(Dataset):
         image_index = index % 8
         feature = one_result[image_index]
         image = one_image[image_index]
-        feature = F.softmax(feature, dim=0)
-        entropy = torch.sum(torch.mul(-feature, torch.log(feature + 1e-20)), dim=0).unsqueeze(dim=0)
+        # feature = F.softmax(feature, dim=0)
+        # entropy = torch.sum(torch.mul(-feature, torch.log(feature + 1e-20)), dim=0).unsqueeze(dim=0)
+        entropy = np_read_with_tensor_output(self.entropy_dir + file_name)
+        entropy = entropy[image_index]
         feature = torch.cat((image, feature, entropy), dim=0)
         annotation = self.annotations[index]
         losses = np_read_with_tensor_output(self.loss_dir + file_name)
@@ -115,8 +122,9 @@ class FeatureDataset(Dataset):
         image_index = index % 8
         feature = one_result[image_index]
         image = one_image[image_index]
-        feature = F.softmax(feature, dim=0)
-        entropy = torch.sum(torch.mul(-feature, torch.log(feature + 1e-20)), dim=0).unsqueeze(dim=0)
+        # feature = F.softmax(feature, dim=0)
+        # entropy = torch.sum(torch.mul(-feature, torch.log(feature + 1e-20)), dim=0).unsqueeze(dim=0)
+        entropy = np_read_with_tensor_output(self.entropy_dir + file_name)
         feature = torch.cat((image, feature, entropy), dim=0)
         annotation = self.annotations[index]
         losses = np_read_with_tensor_output(self.loss_dir + file_name)
