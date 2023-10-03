@@ -90,6 +90,7 @@ class FeatureDataset(Dataset):
         one_image = np_read_with_tensor_output(self.image_dir + file_name)
         image_index = index % 8
         feature = one_result[image_index]
+        # feature = np_read_with_tensor_output(self.feature_dir + str(index) + ".npy")
         image = one_image[image_index]
         # feature = F.softmax(feature, dim=0)
         # entropy = torch.sum(torch.mul(-feature, torch.log(feature + 1e-20)), dim=0).unsqueeze(dim=0)
