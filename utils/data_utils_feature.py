@@ -12,6 +12,13 @@ logger = logging.getLogger(__name__)
 
 normalize_list = {"loss_bbox": [0.09300409561655773, 0.0767726528828114], "loss_ce": [0.3522786986406354, 0.7470140154753052], "loss_giou": [1.1611697194208146, 0.47297514438862676], "loss": [3.1396386155214007, 1.4399662609117525]}
 
+num_classes = 51
+
+conv_thresholds = torch.linspace(0, 10, steps=num_classes)
+
+conv_values = (conv_thresholds[1:] + conv_thresholds[:-1]) / 2
+
+
 def np_read_with_tensor_output(file):
     with open(file, "rb") as outfile:
         data = np.load(outfile)
@@ -22,11 +29,24 @@ def read_one_json_results(path):
         data = json.load(outfile)
     return data
 
+def tensor_float_to_ordinal(inputs):
+    ordinal_classes = torch.zeros_like(inputs, dtype=torch.long)
+    for i, threshold in enumerate(conv_thresholds[:-1]):
+        ordinal_classes[inputs >= threshold] = i
+    return ordinal_classes
+
+def tensor_ordinal_to_float(input_logits):
+    classification = input_logits.argmax(dim=1)
+    results = conv_values[classification]
+    return results
+
+
 class FeatureDataset(Dataset):
     """ Use feature from other model as dataset """
     def __init__(self, input_dir, annotation_dir, feature_path, loss_type, length = 0, shift = 0):
         self.annotations = np_read_with_tensor_output(annotation_dir)
-        self.annotations = (self.annotations - normalize_list[loss_type][0])/normalize_list[loss_type][1]
+        self.annotations = tensor_float_to_ordinal(self.annotations)
+        # self.annotations = (self.annotations - normalize_list[loss_type][0])/normalize_list[loss_type][1]
         # self.annotations = torch.log(self.annotations)
         self.input_dir = input_dir
         self.feature_dir = feature_path

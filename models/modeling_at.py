@@ -34,57 +34,20 @@ FC_1 = "MlpBlock_3/Dense_1"
 ATTENTION_NORM = "LayerNorm_0"
 MLP_NORM = "LayerNorm_2"
 
+class FocalLoss(nn.Module):
+    def __init__(self, gamma=2, alpha=None, ignore_index=255, size_average=True):
+        super(FocalLoss, self).__init__()
+        self.gamma = gamma
+        self.size_average = size_average
+        self.CE_loss = CrossEntropyLoss(reduce=False, ignore_index=ignore_index, weight=alpha)
 
-def ash_p(x, percentile=65):
-    assert x.dim() == 3
-    assert 0 <= percentile <= 100
-
-    b, c, h = x.shape
-
-    n = x.shape[1:].numel()
-    k = n - int(np.round(n * percentile / 100.0))
-    t = x.view((b, c * h))
-    v, i = torch.topk(t, k, dim=1)
-    t.zero_().scatter_(dim=1, index=i, src=v)
-
-    return x
-
-
-def ash_s(x, percentile=65):
-    assert x.dim() == 3
-    assert 0 <= percentile <= 100
-    b, c, h = x.shape
-
-    # calculate the sum of the input per sample
-    s1 = x.sum(dim=[1, 2])
-    n = x.shape[1:].numel()
-    k = n - int(np.round(n * percentile / 100.0))
-    t = x.view((b, c * h))
-    v, i = torch.topk(t, k, dim=1)
-    t.zero_().scatter_(dim=1, index=i, src=v)
-
-    # calculate new sum of the input per sample after pruning
-    s2 = x.sum(dim=[1, 2])
-
-    # apply sharpening
-    scale = s1 / s2
-    x = x * torch.exp(scale[:, None, None])
-
-    return x
-
-
-def ash_rand(x, percentile=65, r1=0, r2=10):
-    assert x.dim() == 3
-    assert 0 <= percentile <= 100
-    b, c, h = x.shape
-
-    n = x.shape[1:].numel()
-    k = n - int(np.round(n * percentile / 100.0))
-    t = x.view((b, c * h))
-    v, i = torch.topk(t, k, dim=1)
-    v = v.uniform_(r1, r2)
-    t.zero_().scatter_(dim=1, index=i, src=v)
-    return x
+    def forward(self, output, target):
+        logpt = self.CE_loss(output, target)
+        pt = torch.exp(-logpt)
+        loss = ((1-pt)**self.gamma) * logpt
+        if self.size_average:
+            return loss.mean()
+        return loss.sum()
 
 def np2th(weights, conv=False):
     """Possibly convert HWIO to OIHW."""
@@ -187,7 +150,6 @@ class Embeddings(nn.Module):
         self.position_embeddings = nn.Parameter(torch.zeros(1, n_patches+1, config.hidden_size))
 
         self.dropout = Dropout(config.transformer["dropout_rate"])
-        self.per = config.ash_per
 
     def forward(self, x):
         x = self.patch_embeddings(x) # [batch_size * n_patches+1 * hidden_size], n_patches=196, hidden_size=768
@@ -309,7 +271,7 @@ class Transformer(nn.Module):
 
 
 class ActiveTestVisionTransformer(nn.Module):
-    def __init__(self, config, img_size=224, num_classes=1, zero_head=True, vis=False):
+    def __init__(self, config, img_size=224, num_classes=50, zero_head=True, vis=False):
         super(ActiveTestVisionTransformer, self).__init__()
         self.num_classes = num_classes
         self.zero_head = zero_head
@@ -317,16 +279,13 @@ class ActiveTestVisionTransformer(nn.Module):
 
         self.transformer = Transformer(config, img_size, vis)
         self.head = Linear(config.hidden_size, num_classes)
-        self.loss_function = torch.nn.SmoothL1Loss(reduction='mean')
-        self.per = config.ash_per
+        self.focal_loss = FocalLoss()
 
     def forward(self, x, labels=None):
         x, attn_weights = self.transformer(x)
-        # x = ash_s(x, self.per)
         estimates = self.head(x[:, 0])
-        estimates = estimates.reshape(estimates.shape[0])
         if labels is not None:
-            loss = 100 * self.loss_function(estimates, labels)
+            loss = 4 * self.focal_loss(estimates, labels)
             return loss
         else:
             return estimates, attn_weights

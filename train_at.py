@@ -17,10 +17,10 @@ from torch.utils.tensorboard import SummaryWriter
 from apex import amp
 from apex.parallel import DistributedDataParallel as DDP
 
-from models.modeling_at import ActiveTestVisionTransformer, CONFIGS
+from models.modeling_at import ActiveTestVisionTransformer, CONFIGS, FocalLoss
 from utils.scheduler import WarmupLinearSchedule, WarmupCosineSchedule
 from utils.data_utils_at import get_loader_at
-from utils.data_utils_feature import get_loader_feature
+from utils.data_utils_feature import get_loader_feature, tensor_ordinal_to_float
 from utils.dist_util import get_world_size
 import ipdb
 import json
@@ -53,9 +53,9 @@ def simple_accuracy(preds, labels):
     return (preds == labels).mean()
 
 
-def save_model(args, model):
+def save_model(args, model, global_step):
     model_to_save = model.module if hasattr(model, 'module') else model
-    model_checkpoint = os.path.join(args.output_dir, "%s_checkpoint.bin" % args.name)
+    model_checkpoint = os.path.join(args.output_dir, f"{args.name}_checkpoint_{global_step}.bin")
     torch.save(model_to_save.state_dict(), model_checkpoint)
     logger.info("Saved model checkpoint to [DIR: %s]", args.output_dir)
 
@@ -66,7 +66,7 @@ def setup(args):
     config.input_feature_dim = args.input_feature_dim
     config.ash_per = args.ash_per
     model = ActiveTestVisionTransformer(config)
-    model.load_from(np.load(args.pretrained_dir), requires_grad = args.encoder_weight_train)
+    model.load_from(np.load(args.pretrained_dir), requires_grad = args.enable_backbone_grad)
     # model.load_state_dict(torch.from_numpy(np.load(args.pretrained_dir)))
     model.to(args.device)
     num_params = count_parameters(model)
@@ -109,7 +109,7 @@ def valid(args, model, writer, test_loader, global_step):
                           bar_format="{l_bar}{r_bar}",
                           dynamic_ncols=True,
                           disable=args.local_rank not in [-1, 0])
-    loss_fct = torch.nn.SmoothL1Loss(reduction='mean')
+    loss_fct = FocalLoss()
     for step, batch in enumerate(epoch_iterator):
         batch = tuple(t.to(args.device) for t in batch)
         x, y = batch
@@ -118,7 +118,7 @@ def valid(args, model, writer, test_loader, global_step):
 
             eval_loss = loss_fct(logits, y)
             eval_losses.update(eval_loss.item())
-            all_preds.extend(logits.tolist())
+            all_preds.extend(tensor_ordinal_to_float(logits).tolist())
 
         epoch_iterator.set_description("Validating... (loss=%2.5f)" % eval_losses.val)
 
@@ -149,12 +149,11 @@ def train(args, model):
                                 lr=args.learning_rate,
                                 momentum=0.9,
                                 weight_decay=args.weight_decay)
-    # optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     t_total = args.num_steps
-    # if args.decay_type == "cosine":
-    #     scheduler = WarmupCosineSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=t_total)
-    # else:
-    #     scheduler = WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=t_total)
+    if args.decay_type == "cosine":
+        scheduler = WarmupCosineSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=t_total)
+    else:
+        scheduler = WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=t_total)
 
     if args.fp16:
         model, optimizer = amp.initialize(models=model,
@@ -165,8 +164,8 @@ def train(args, model):
     # Distributed training
     if args.local_rank != -1:
         model = DDP(model, message_size=250000000, gradient_predivide_factor=get_world_size())
-    
-    wandb.watch(model, log="all")
+    if args.enable_wandb:
+        wandb.watch(model, log="all")
 
     # Train!
     logger.info("***** Running training *****")
@@ -209,7 +208,7 @@ def train(args, model):
                     torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), args.max_grad_norm)
                 else:
                     torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
-                # scheduler.step()
+                scheduler.step()
                 optimizer.step()
                 optimizer.zero_grad()
                 global_step += 1
@@ -219,21 +218,22 @@ def train(args, model):
                 )
                 if args.local_rank in [-1, 0]:
                     writer.add_scalar("train/loss", scalar_value=losses.val, global_step=global_step)
-                    # writer.add_scalar("train/lr", scalar_value=scheduler.get_lr()[0], global_step=global_step)
+                    writer.add_scalar("train/lr", scalar_value=scheduler.get_lr()[0], global_step=global_step)
                 if global_step % args.eval_every == 0 and args.local_rank in [-1, 0]:
                     accuracy, all_preds = valid(args, model, writer, test_loader, global_step)
                     if best_acc > accuracy:
-                        save_model(args, model)
                         best_acc = accuracy
-                        path = os.path.join(args.output_dir, "%s_losses.json" % args.name)
-                        json_objects = {"losses": all_preds}
-                        write_one_results(path, json_objects)
+                    save_model(args, model, global_step)
+                    path = os.path.join(args.output_dir, f"{args.name}_losses_{global_step}.json")
+                    json_objects = {"losses": all_preds}
+                    write_one_results(path, json_objects)
                     model.train()
 
                 if global_step % t_total == 0:
                     break
-                wandb.log({"loss":loss, "val_loss": accuracy, "lr": optimizer.param_groups[0]['lr']}, step=global_step)
-                wandb.log(model.state_dict())
+                if args.enable_wandb:
+                    wandb.log({"loss":loss, "val_loss": accuracy, "lr": optimizer.param_groups[0]['lr']}, step=global_step)
+                    wandb.log(model.state_dict())
         losses.reset()
         if global_step % t_total == 0:
             break
@@ -308,6 +308,10 @@ def main():
                              "Positive power of 2: static loss scaling value.\n")
     parser.add_argument('--encoder_weight_train', action='store_true',
                         help="Whether to use 16-bit float precision instead of 32-bit")
+    parser.add_argument('--enable_wandb', action='store_true',
+                        help="Whether to enable wandb")
+    parser.add_argument('--enable_backbone_grad', action='store_true',
+                        help="Whether to enable the retraining of backbone")
     args = parser.parse_args()
 
     # Setup CUDA, GPU & distributed training
@@ -333,15 +337,16 @@ def main():
     set_seed(args)
     
     # start a new wandb run to track this script
-    wandb.init(
-        # set the wandb project where this run will be logged
-        project="Bosch_active_testing",
-        config=args,
-        entity="susanbao",
-        notes=socket.gethostname(),
-        name=args.name,
-        job_type="training"
-    )
+    if args.enable_wandb:
+        wandb.init(
+            # set the wandb project where this run will be logged
+            project="Bosch_active_testing",
+            config=args,
+            entity="susanbao",
+            notes=socket.gethostname(),
+            name=args.name,
+            job_type="training"
+        )
 
     # Model & Tokenizer Setup
     args, model = setup(args)
@@ -349,7 +354,8 @@ def main():
     # Training
     train(args, model)
     
-    wandb.finish()
+    if args.enable_wandb:
+        wandb.finish()
 
 
 if __name__ == "__main__":
