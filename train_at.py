@@ -20,7 +20,7 @@ from apex.parallel import DistributedDataParallel as DDP
 from models.modeling_seg import ActiveTestVisionTransformer, CONFIGS, FocalLoss
 from utils.scheduler import WarmupLinearSchedule, WarmupCosineSchedule
 from utils.data_utils_at import get_loader_at
-from utils.data_utils_feature import get_loader_feature, tensor_ordinal_to_float
+from utils.data_utils_feature import get_loader_feature, tensor_ordinal_to_float, tensor_ordinal_to_float_patch
 from utils.dist_util import get_world_size
 import ipdb
 import json
@@ -65,6 +65,7 @@ def setup(args):
     config = CONFIGS[args.model_type]
     config.input_feature_dim = args.input_feature_dim
     config.ash_per = args.ash_per
+    config.loss_range = args.loss_range
     model = ActiveTestVisionTransformer(config)
     model.load_from(np.load(args.pretrained_dir), requires_grad = args.enable_backbone_grad)
     # model.load_state_dict(torch.from_numpy(np.load(args.pretrained_dir)))
@@ -109,16 +110,31 @@ def valid(args, model, writer, test_loader, global_step):
                           bar_format="{l_bar}{r_bar}",
                           dynamic_ncols=True,
                           disable=args.local_rank not in [-1, 0])
-    loss_fct = torch.nn.CrossEntropyLoss(weight = model.class_weight.to(args.device))
+    loss_fct = torch.nn.L1Loss()
     for step, batch in enumerate(epoch_iterator):
         batch = tuple(t.to(args.device) for t in batch)
         x, y = batch
         with torch.no_grad():
-            logits = model(x)[0]
+            y = y.to(torch.float)
+            image_logits, _, region_logits = model(x)
+            if args.loss_range == "all":
+                image_class = image_logits.argmax(dim=1).to(torch.float)
+                region_class = region_logits.argmax(dim=2).to(torch.float)
 
-            eval_loss = loss_fct(logits, y[:,0])
+                eval_loss = loss_fct(image_class, y[:,0]) + loss_fct(region_class, y[:,1:])
+                all_preds.extend(tensor_ordinal_to_float_patch(region_logits.reshape(-1, region_logits.shape[2])).tolist())
+            elif args.loss_range == "image":
+                image_class = image_logits.argmax(dim=1).to(torch.float)
+                eval_loss = loss_fct(image_class, y[:,0])
+                all_preds.extend(tensor_ordinal_to_float(image_logits).tolist())
+            elif args.loss_range == "region":
+                region_class = region_logits.argmax(dim=2).to(torch.float)
+                eval_loss = loss_fct(region_class, y[:,1:])
+                all_preds.extend(tensor_ordinal_to_float_patch(region_logits.reshape(-1, region_logits.shape[2])).tolist())
+            else:
+                print(f"loss_range error, {loss_range}")
             eval_losses.update(eval_loss.item())
-            all_preds.extend(tensor_ordinal_to_float(logits).tolist())
+            
 
         epoch_iterator.set_description("Validating... (loss=%2.5f)" % eval_losses.val)
 
@@ -313,6 +329,8 @@ def main():
                         help="Whether to enable the retraining of backbone")
     parser.add_argument('--enable_wandb', action='store_true',
                         help="Whether to enable wandb")
+    parser.add_argument('--loss_range', type=str, default="all",
+                        help="considered region/image for loss: all, region, image")
     args = parser.parse_args()
 
     # Setup CUDA, GPU & distributed training

@@ -343,21 +343,29 @@ class ActiveTestVisionTransformer(nn.Module):
         self.class_weight = class_weight
 
         self.entropy_loss = CrossEntropyLoss(weight=class_weight)
+        self.loss_range = config.loss_range
 
     def forward(self, x, labels=None):
         x, attn_weights = self.transformer(x)
         x = self.head(x)
         whole_estimates = self.whole_head(x[:,0])
+        patch_estimates = self.single_head(x[:,1:])
 
         if labels is not None:
-            patch_estimates = self.single_head(x[:,1:])
-            patch_estimates = patch_estimates.reshape((-1,patch_estimates.shape[2]))
-            patch_labels = labels[:,1:].reshape(-1)
-            loss = self.focal_loss(whole_estimates, labels[:,0]) + self.focal_loss(patch_estimates, patch_labels)
+            if self.loss_range == "all":
+                patch_estimates = patch_estimates.reshape((-1,patch_estimates.shape[2]))
+                patch_labels = labels[:,1:].reshape(-1)
+                loss = self.focal_loss(whole_estimates, labels[:,0]) + self.focal_loss(patch_estimates, patch_labels)
+            elif self.loss_range == "image":
+                loss = self.focal_loss(whole_estimates, labels[:,0])
+            elif self.loss_range == "region":
+                patch_estimates = patch_estimates.reshape((-1,patch_estimates.shape[2]))
+                patch_labels = labels[:,1:].reshape(-1)
+                loss = self.focal_loss(patch_estimates, patch_labels)
             # loss = 100 * loss
             return loss
         else:
-            return whole_estimates, attn_weights
+            return whole_estimates, attn_weights, patch_estimates
     
     def forward_patch_result(self, x):
         x, attn_weights = self.transformer(x)
