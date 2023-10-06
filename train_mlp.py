@@ -20,7 +20,7 @@ from apex.parallel import DistributedDataParallel as DDP
 from models.modeling_at import ActiveTestVisionTransformer, CONFIGS
 from utils.scheduler import WarmupLinearSchedule, WarmupCosineSchedule
 from utils.data_utils_at import get_loader_at
-from utils.data_utils_feature import get_loader_feature
+from utils.data_utils_feature import *
 from utils.dist_util import get_world_size
 import ipdb
 import json
@@ -31,6 +31,22 @@ from torchvision.models import resnet18
 
 
 logger = logging.getLogger(__name__)
+
+
+class FocalLoss(nn.Module):
+    def __init__(self, gamma=2, alpha=None, ignore_index=255, size_average=True):
+        super(FocalLoss, self).__init__()
+        self.gamma = gamma
+        self.size_average = size_average
+        self.CE_loss = nn.CrossEntropyLoss(reduce=False, ignore_index=ignore_index, weight=alpha)
+
+    def forward(self, output, target):
+        logpt = self.CE_loss(output, target)
+        pt = torch.exp(-logpt)
+        loss = ((1-pt)**self.gamma) * logpt
+        if self.size_average:
+            return loss.mean()
+        return loss.sum()
 
 class MLP(nn.Module):
     def __init__(self, input_size, hidden_sizes, output_size):
@@ -131,14 +147,14 @@ class ResNetRegression(nn.Module):
         # Modify the first layer to accommodate the specified input_channels
         self.resnet.conv1 = nn.Conv2d(input_channels, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.resnet.fc = nn.Linear(512, output_size)  # Change the fully connected layer to output_size units
-        self.loss_function = torch.nn.SmoothL1Loss(reduction='mean')
+        self.loss_function = FocalLoss()
         nn.init.kaiming_uniform_(self.resnet.conv1.weight)
         nn.init.kaiming_uniform_(self.resnet.fc.weight)
 
     def forward(self, x, labels=None):
         x = self.resnet(x)
         if labels is not None:
-            loss = 100 * self.loss_function(x, labels)
+            loss = self.loss_function(x, labels)
             return loss
         else:
             return x, None
@@ -177,8 +193,8 @@ def setup(args):
     config = CONFIGS[args.model_type]
     config.input_feature_dim = args.input_feature_dim
     config.ash_per = args.ash_per
-    # model = ResNetRegression(input_channels = 25, output_size = 1)
-    model = MLP(900, [100,10], output_size = 1)
+    model = ResNetRegression(input_channels = 25, output_size = 50)
+    # model = MLP(900, [100,10], output_size = 1)
     # model.load_from(np.load(args.pretrained_dir), requires_grad = args.enable_backbone_grad)
     # model.load_state_dict(torch.from_numpy(np.load(args.pretrained_dir)))
     model.to(args.device)
@@ -226,12 +242,14 @@ def valid(args, model, writer, test_loader, global_step):
     for step, batch in enumerate(epoch_iterator):
         batch = tuple(t.to(args.device) for t in batch)
         x, y = batch
+        y = y.to(torch.float)
         with torch.no_grad():
             logits = model(x)[0]
+            image_class = logits.argmax(dim=1).to(torch.float)
 
-            eval_loss = loss_fct(logits, y)
+            eval_loss = loss_fct(image_class, y)
             eval_losses.update(eval_loss.item())
-            all_preds.extend(logits.tolist())
+            all_preds.extend(tensor_ordinal_to_float(logits).tolist())
 
         epoch_iterator.set_description("Validating... (loss=%2.5f)" % eval_losses.val)
 
@@ -293,7 +311,8 @@ def train(args, model):
     losses = AverageMeter()
     global_step, best_acc = 0, 100000
     accuracy = 0
-    wandb.watch(model, log="all")
+    if args.enable_wandb:
+        wandb.watch(model, log="all")
     while True:
         model.train()
         epoch_iterator = tqdm(train_loader,
@@ -344,8 +363,9 @@ def train(args, model):
 
                 if global_step % t_total == 0:
                     break
-                wandb.log({"loss":loss, "val_loss": accuracy}, step=global_step)
-                wandb.log(model.state_dict())
+                if args.enable_wandb:
+                    wandb.log({"loss":loss, "val_loss": accuracy}, step=global_step)
+                    wandb.log(model.state_dict())
         losses.reset()
         if global_step % t_total == 0:
             break
@@ -420,6 +440,8 @@ def main():
                         help="Whether to use 16-bit float precision instead of 32-bit")
     parser.add_argument('--enable_backbone_grad', action='store_true',
                         help="Whether to enable the retraining of backbone")
+    parser.add_argument('--enable_wandb', action='store_true',
+                        help="Whether to enable wandb")
     args = parser.parse_args()
 
     # Setup CUDA, GPU & distributed training
@@ -445,23 +467,24 @@ def main():
     set_seed(args)
     
     # start a new wandb run to track this script
-    wandb.init(
-        # set the wandb project where this run will be logged
-        project="Bosch_active_testing",
-        config=args,
-        entity="susanbao",
-        notes=socket.gethostname(),
-        name=args.name,
-        job_type="training"
-    )
+    if args.enable_wandb:
+        wandb.init(
+            # set the wandb project where this run will be logged
+            project="Bosch_active_testing",
+            config=args,
+            entity="susanbao",
+            notes=socket.gethostname(),
+            name=args.name,
+            job_type="training"
+        )
 
     # Model & Tokenizer Setup
     args, model = setup(args)
 
     # Training
     train(args, model)
-    
-    wandb.finish()
+    if args.enable_wandb:
+        wandb.finish()
 
 
 if __name__ == "__main__":

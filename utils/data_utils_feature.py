@@ -69,11 +69,7 @@ class FeatureDataset(Dataset):
     """ Use feature from other model as dataset """
     def __init__(self, input_dir, annotation_dir, length = 0, shift = 0, aug = True):
         self.annotations = np_read_with_tensor_output(annotation_dir)
-        # self.annotations = tensor_float_to_ordinal(self.annotations)
-        # self.annotations = (self.annotations - normalize[0])/normalize[1]
-        # self.annotations[self.annotations < 0.01] = 0.01
-        # self.annotations = torch.log(self.annotations)
-        # self.annotations = 10 * self.annotations
+        self.annotations = tensor_float_to_ordinal(self.annotations)
         self.feature_dir = input_dir + "/feature/"
         self.image_dir = input_dir + "/image/"
         self.loss_dir = input_dir + "/loss/"
@@ -90,33 +86,28 @@ class FeatureDataset(Dataset):
         one_image = np_read_with_tensor_output(self.image_dir + file_name)
         image_index = index % 8
         feature = one_result[image_index]
-        # feature = np_read_with_tensor_output(self.feature_dir + str(index) + ".npy")
         image = one_image[image_index]
-        # feature = F.softmax(feature, dim=0)
-        # entropy = torch.sum(torch.mul(-feature, torch.log(feature + 1e-20)), dim=0).unsqueeze(dim=0)
         
         entropy = np_read_with_tensor_output(self.entropy_dir + file_name)
         entropy = entropy[image_index]
         feature = torch.cat((image, feature, entropy), dim=0)
-        # without one part of input
-        # feature = torch.cat((image, entropy), dim=0)
         
         annotation = self.annotations[index]
-        losses = np_read_with_tensor_output(self.loss_dir + file_name)
-        loss = losses[image_index]
-        loss = torch.unsqueeze(loss, dim=0)
-        loss = self.avgpool(loss)
+        # losses = np_read_with_tensor_output(self.loss_dir + file_name)
+        # loss = losses[image_index]
+        # loss = torch.unsqueeze(loss, dim=0)
+        # loss = self.avgpool(loss)
 
         if self.aug:
             if random.random()>0.5:
                 feature = torch.flip(feature, [1])
-                loss = torch.flip(loss, [1])
+                # loss = torch.flip(loss, [1])
             if random.random()>0.5:
                 feature = torch.flip(feature, [2])
-                loss = torch.flip(loss, [2])
-        loss = torch.flatten(loss)
+                # loss = torch.flip(loss, [2])
+        # loss = torch.flatten(loss)
         # loss = tensor_float_to_ordinal_patch(loss)
-        annotation = torch.cat((annotation.unsqueeze(0), loss), dim=0)
+        # annotation = torch.cat((annotation.unsqueeze(0), loss), dim=0)
         return tuple((feature, annotation))
     
     def get_item_with_indices(self, index):
