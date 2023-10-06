@@ -115,22 +115,19 @@ def valid(args, model, writer, test_loader, global_step):
         batch = tuple(t.to(args.device) for t in batch)
         x, y = batch
         with torch.no_grad():
-            y = y.to(torch.float)
+            # y = y.to(torch.float)
             image_logits, _, region_logits = model(x)
+            region_logits = region_logits.reshape(-1)
+            
             if args.loss_range == "all":
-                image_class = image_logits.argmax(dim=1).to(torch.float)
-                region_class = region_logits.argmax(dim=2).to(torch.float)
-
-                eval_loss = loss_fct(image_class, y[:,0]) + loss_fct(region_class, y[:,1:])
-                all_preds.extend(tensor_ordinal_to_float_patch(region_logits.reshape(-1, region_logits.shape[2])).tolist())
+                eval_loss = loss_fct(image_logits, y[:,0]) + loss_fct(region_logits, y[:,1:].reshape(-1))
+                all_preds.extend(region_logits.tolist())
             elif args.loss_range == "image":
-                image_class = image_logits.argmax(dim=1).to(torch.float)
-                eval_loss = loss_fct(image_class, y[:,0])
-                all_preds.extend(tensor_ordinal_to_float(image_logits).tolist())
+                eval_loss = loss_fct(image_logits, y[:,0])
+                all_preds.extend(image_logits.tolist())
             elif args.loss_range == "region":
-                region_class = region_logits.argmax(dim=2).to(torch.float)
-                eval_loss = loss_fct(region_class, y[:,1:])
-                all_preds.extend(tensor_ordinal_to_float_patch(region_logits.reshape(-1, region_logits.shape[2])).tolist())
+                eval_loss = loss_fct(region_logits, y[:,1:].reshape(-1))
+                all_preds.extend(region_logits.tolist())
             else:
                 print(f"loss_range error, {loss_range}")
             eval_losses.update(eval_loss.item())

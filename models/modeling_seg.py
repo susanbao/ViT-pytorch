@@ -322,7 +322,7 @@ class FirstLinearLayer(nn.Module):
 
 
 class ActiveTestVisionTransformer(nn.Module):
-    def __init__(self, config, img_size=480, num_classes=50, zero_head=True, vis=False):
+    def __init__(self, config, img_size=480, num_classes=1, zero_head=True, vis=False):
         super(ActiveTestVisionTransformer, self).__init__()
         self.num_classes = num_classes
         self.zero_head = zero_head
@@ -344,24 +344,26 @@ class ActiveTestVisionTransformer(nn.Module):
 
         self.entropy_loss = CrossEntropyLoss(weight=class_weight)
         self.loss_range = config.loss_range
+        self.sl1loss = torch.nn.SmoothL1Loss()
+        self.relu = torch.nn.ReLU()
 
     def forward(self, x, labels=None):
         x, attn_weights = self.transformer(x)
         x = self.head(x)
-        whole_estimates = self.whole_head(x[:,0])
-        patch_estimates = self.single_head(x[:,1:])
+        whole_estimates = self.relu(self.whole_head(x[:,0]))
+        patch_estimates = self.relu(self.single_head(x[:,1:]))
 
         if labels is not None:
             if self.loss_range == "all":
-                patch_estimates = patch_estimates.reshape((-1,patch_estimates.shape[2]))
+                patch_estimates = patch_estimates.reshape(-1)
                 patch_labels = labels[:,1:].reshape(-1)
-                loss = self.focal_loss(whole_estimates, labels[:,0]) + self.focal_loss(patch_estimates, patch_labels)
+                loss = self.sl1loss(whole_estimates, labels[:,0]) + self.sl1loss(patch_estimates, patch_labels)
             elif self.loss_range == "image":
-                loss = self.focal_loss(whole_estimates, labels[:,0])
+                loss = self.sl1loss(whole_estimates, labels[:,0])
             elif self.loss_range == "region":
-                patch_estimates = patch_estimates.reshape((-1,patch_estimates.shape[2]))
+                patch_estimates = patch_estimates.reshape(-1)
                 patch_labels = labels[:,1:].reshape(-1)
-                loss = self.focal_loss(patch_estimates, patch_labels)
+                loss = self.sl1loss(patch_estimates, patch_labels)
             # loss = 100 * loss
             return loss
         else:

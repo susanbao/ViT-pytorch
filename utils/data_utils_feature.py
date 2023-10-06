@@ -69,7 +69,7 @@ class FeatureDataset(Dataset):
     """ Use feature from other model as dataset """
     def __init__(self, input_dir, annotation_dir, length = 0, shift = 0, aug = True):
         self.annotations = np_read_with_tensor_output(annotation_dir)
-        self.annotations = tensor_float_to_ordinal(self.annotations)
+        # self.annotations = tensor_float_to_ordinal(self.annotations)
         # self.annotations = (self.annotations - normalize[0])/normalize[1]
         # self.annotations[self.annotations < 0.01] = 0.01
         # self.annotations = torch.log(self.annotations)
@@ -115,7 +115,7 @@ class FeatureDataset(Dataset):
                 feature = torch.flip(feature, [2])
                 loss = torch.flip(loss, [2])
         loss = torch.flatten(loss)
-        loss = tensor_float_to_ordinal_patch(loss)
+        # loss = tensor_float_to_ordinal_patch(loss)
         annotation = torch.cat((annotation.unsqueeze(0), loss), dim=0)
         return tuple((feature, annotation))
     
