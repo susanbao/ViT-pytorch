@@ -94,9 +94,13 @@ class FeatureDataset(Dataset):
         image = one_image[image_index]
         # feature = F.softmax(feature, dim=0)
         # entropy = torch.sum(torch.mul(-feature, torch.log(feature + 1e-20)), dim=0).unsqueeze(dim=0)
+        
         entropy = np_read_with_tensor_output(self.entropy_dir + file_name)
         entropy = entropy[image_index]
         feature = torch.cat((image, feature, entropy), dim=0)
+        # without one part of input
+        # feature = torch.cat((image, entropy), dim=0)
+        
         annotation = self.annotations[index]
         losses = np_read_with_tensor_output(self.loss_dir + file_name)
         loss = losses[image_index]
@@ -126,6 +130,7 @@ class FeatureDataset(Dataset):
         # feature = F.softmax(feature, dim=0)
         # entropy = torch.sum(torch.mul(-feature, torch.log(feature + 1e-20)), dim=0).unsqueeze(dim=0)
         entropy = np_read_with_tensor_output(self.entropy_dir + file_name)
+        entropy = entropy[image_index]
         feature = torch.cat((image, feature, entropy), dim=0)
         annotation = self.annotations[index]
         losses = np_read_with_tensor_output(self.loss_dir + file_name)
