@@ -66,7 +66,7 @@ def setup(args):
     config.input_feature_dim = args.input_feature_dim
     config.ash_per = args.ash_per
     config.loss_range = args.loss_range
-    model = ActiveTestVisionTransformer(config)
+    model = ActiveTestVisionTransformer(config, num_classes = args.ordinal_class_num)
     model.load_from(np.load(args.pretrained_dir), requires_grad = args.enable_backbone_grad)
     # model.load_state_dict(torch.from_numpy(np.load(args.pretrained_dir)))
     model.to(args.device)
@@ -331,6 +331,8 @@ def main():
                         help="Whether to enable wandb")
     parser.add_argument('--loss_range', type=str, default="all",
                         help="considered region/image for loss: all, region, image")
+    parser.add_argument("--ordinal_class_num", default=50, type=int,
+                        help="Number of ordinal class, also need to change the value in data_utils_feature.")
     args = parser.parse_args()
 
     # Setup CUDA, GPU & distributed training
