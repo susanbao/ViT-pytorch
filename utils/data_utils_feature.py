@@ -13,9 +13,17 @@ import random
 
 logger = logging.getLogger(__name__)
 
-normalize = [0.05269893, 0.053517897]
-
-num_classes = 51
+# [image, region_16, region_32, region_8]
+CONV_THR_DICT = {"PSPNet_VOC": [1.5, 10],
+                 "UNet_VOC": [0, 22],
+                 "DeepLab_VOC": [1.5, 11],
+                 "FCN_VOC": [2, 12],
+                 "SEGNet_VOC": [4, 30],
+                 "PSPNet_CITY": [0.5, 11],
+                 "UNet_CITY": [3.2, 13.4],
+                 "DeepLab_CITY": [0.7, 11],
+                 "FCN_CITY": [1.1, 11.8],
+                 "SEGNet_VOC": [1.9, 21.4]}
 
 # PSPNet_VOC
 # conv_thresholds = torch.linspace(0, 1.5, steps=num_classes)
@@ -43,12 +51,12 @@ num_classes = 51
 # conv_thresholds_patch = torch.linspace(0, 30, steps=num_classes)
 
 # PSPNet_CITY
-conv_thresholds = torch.linspace(0, 0.5, steps=num_classes)
-conv_thresholds_patch = torch.linspace(0, 11, steps=num_classes)
+# conv_thresholds = torch.linspace(0, 0.5, steps=num_classes)
+# conv_thresholds_patch = torch.linspace(0, 11, steps=num_classes)
 
-conv_values = (conv_thresholds[1:] + conv_thresholds[:-1]) / 2
+# conv_values = (conv_thresholds[1:] + conv_thresholds[:-1]) / 2
 
-conv_values_patch = (conv_thresholds_patch[1:] + conv_thresholds_patch[:-1]) / 2
+# conv_values_patch = (conv_thresholds_patch[1:] + conv_thresholds_patch[:-1]) / 2
 
 def np_read_with_tensor_output(file):
     with open(file, "rb") as outfile:
@@ -60,46 +68,53 @@ def read_one_json_results(path):
         data = json.load(outfile)
     return data
 
-def tensor_float_to_ordinal(inputs):
+def tensor_float_to_ordinal(inputs, conv_thresholds):
     ordinal_classes = torch.zeros_like(inputs, dtype=torch.long)
     for i, threshold in enumerate(conv_thresholds[:-1]):
         ordinal_classes[inputs >= threshold] = i
     return ordinal_classes
 
-def tensor_ordinal_to_float(input_logits):
+def tensor_ordinal_to_float(input_logits, conv_values):
     classification = input_logits.argmax(dim=1)
     results = conv_values[classification]
     return results
 
-def tensor_float_to_ordinal_patch(inputs):
+def tensor_float_to_ordinal_patch(inputs, conv_thresholds_patch):
     ordinal_classes = torch.zeros_like(inputs, dtype=torch.long)
     for i, threshold in enumerate(conv_thresholds_patch[:-1]):
         ordinal_classes[inputs >= threshold] = i
     return ordinal_classes
 
-def tensor_ordinal_to_float_patch(input_logits):
+def tensor_ordinal_to_float_patch(input_logits, conv_values_patch):
     classification = input_logits.argmax(dim=1)
     results = conv_values_patch[classification]
     return results
 
 class FeatureDataset(Dataset):
     """ Use feature from other model as dataset """
-    def __init__(self, input_dir, annotation_dir, length = 0, shift = 0, aug = True):
+    def __init__(self, input_dir, annotation_dir, args, length = 0, shift = 0, aug = True):
+        self.num_classes = args.ordinal_class_num + 1
+        self.model_data_type = args.model_data_type
+        self.conv_thresholds = torch.linspace(0, CONV_THR_DICT[self.model_data_type][0], steps=self.num_classes)
+        if args.region_size == 16:
+            self.conv_thresholds_patch = torch.linspace(0, CONV_THR_DICT[self.model_data_type][1], steps=self.num_classes)
+            self.avgpool = torch.nn.AdaptiveAvgPool2d((30,30))
+        elif args.region_size == 32:
+            self.conv_thresholds_patch = torch.linspace(0, CONV_THR_DICT[self.model_data_type][2], steps=self.num_classes)
+            self.avgpool = torch.nn.AdaptiveAvgPool2d((15,15))
+        self.conv_values = (self.conv_thresholds[1:] + self.conv_thresholds[:-1]) / 2
+        self.conv_values_patch = (self.conv_thresholds_patch[1:] + self.conv_thresholds_patch[:-1]) / 2
+        
         self.annotations = np_read_with_tensor_output(annotation_dir)
-        self.annotations = tensor_float_to_ordinal(self.annotations)
-        # self.annotations = (self.annotations - normalize[0])/normalize[1]
-        # self.annotations[self.annotations < 0.01] = 0.01
-        # self.annotations = torch.log(self.annotations)
-        # self.annotations = 10 * self.annotations
+        self.annotations = tensor_float_to_ordinal(self.annotations, self.conv_thresholds)
         self.feature_dir = input_dir + "/feature/"
         self.image_dir = input_dir + "/image/"
         self.loss_dir = input_dir + "/loss/"
         self.entropy_dir = input_dir + "/entropy/"
         self.lens = self.annotations.shape[0] if length == 0 else length
         self.shift = shift
-        self.avgpool = torch.nn.AdaptiveAvgPool2d((30,30))
-        # self.avgpool = torch.nn.AdaptiveAvgPool2d((15,15))
         self.aug = aug
+        
     
     def __getitem__(self, index):
         index = index + self.shift
@@ -133,7 +148,7 @@ class FeatureDataset(Dataset):
                 feature = torch.flip(feature, [2])
                 loss = torch.flip(loss, [2])
         loss = torch.flatten(loss)
-        loss = tensor_float_to_ordinal_patch(loss)
+        loss = tensor_float_to_ordinal_patch(loss, self.conv_thresholds_patch)
         annotation = torch.cat((annotation.unsqueeze(0), loss), dim=0)
         return tuple((feature, annotation))
     
@@ -164,7 +179,7 @@ class FeatureDataset(Dataset):
                 feature = torch.flip(feature, [2])
                 loss = torch.flip(loss, [2])
         loss = torch.flatten(loss)
-        loss = tensor_float_to_ordinal_patch(loss)
+        loss = tensor_float_to_ordinal_patch(loss, self.conv_thresholds_patch)
         annotation = torch.cat((annotation.unsqueeze(0), loss), dim=0)
         return tuple((feature, annotation, top_indices))
     
@@ -179,12 +194,12 @@ def get_loader_feature(args):
     split = "train"
     inputs_path = model_data_path + split
     store_preprocess_annotations_path = model_data_path + split + "/image_true_losses.npy"
-    train_datasets = FeatureDataset(inputs_path, store_preprocess_annotations_path)
+    train_datasets = FeatureDataset(inputs_path, store_preprocess_annotations_path, args)
     
     split = "val"
     inputs_path = model_data_path + split
     store_preprocess_annotations_path = model_data_path + split + "/image_true_losses.npy"
-    test_datasets = FeatureDataset(inputs_path, store_preprocess_annotations_path, aug=False)
+    test_datasets = FeatureDataset(inputs_path, store_preprocess_annotations_path, args, aug=False)
 
     if args.local_rank == 0:
         torch.distributed.barrier()

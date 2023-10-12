@@ -20,7 +20,7 @@ from apex.parallel import DistributedDataParallel as DDP
 from models.modeling_seg import ActiveTestVisionTransformer, CONFIGS, FocalLoss
 from utils.scheduler import WarmupLinearSchedule, WarmupCosineSchedule
 from utils.data_utils_at import get_loader_at
-from utils.data_utils_feature import get_loader_feature, tensor_ordinal_to_float, tensor_ordinal_to_float_patch
+from utils.data_utils_feature import get_loader_feature, tensor_ordinal_to_float, tensor_ordinal_to_float_patch, FeatureDataset
 from utils.dist_util import get_world_size
 import ipdb
 import json
@@ -111,6 +111,7 @@ def valid(args, model, writer, test_loader, global_step):
                           dynamic_ncols=True,
                           disable=args.local_rank not in [-1, 0])
     loss_fct = torch.nn.L1Loss()
+    temp_dataset = FeatureDataset(args.data_dir + "val",args.data_dir + "val/image_true_losses.npy", args)
     for step, batch in enumerate(epoch_iterator):
         batch = tuple(t.to(args.device) for t in batch)
         x, y = batch
@@ -122,15 +123,15 @@ def valid(args, model, writer, test_loader, global_step):
                 region_class = region_logits.argmax(dim=2).to(torch.float)
 
                 eval_loss = loss_fct(image_class, y[:,0]) + loss_fct(region_class, y[:,1:])
-                all_preds.extend(tensor_ordinal_to_float(image_logits).tolist())
+                all_preds.extend(tensor_ordinal_to_float(image_logits, temp_dataset.conv_values).tolist())
             elif args.loss_range == "image":
                 image_class = image_logits.argmax(dim=1).to(torch.float)
                 eval_loss = loss_fct(image_class, y[:,0])
-                all_preds.extend(tensor_ordinal_to_float(image_logits).tolist())
+                all_preds.extend(tensor_ordinal_to_float(image_logits, temp_dataset.conv_values).tolist())
             elif args.loss_range == "region":
                 region_class = region_logits.argmax(dim=2).to(torch.float)
                 eval_loss = loss_fct(region_class, y[:,1:])
-                all_preds.extend(tensor_ordinal_to_float_patch(region_logits.reshape(-1, region_logits.shape[2])).tolist())
+                all_preds.extend(tensor_ordinal_to_float_patch(region_logits.reshape(-1, region_logits.shape[2]), temp_dataset.conv_values_patch).tolist())
             else:
                 print(f"loss_range error, {loss_range}")
             eval_losses.update(eval_loss.item())
@@ -333,6 +334,10 @@ def main():
                         help="considered region/image for loss: all, region, image")
     parser.add_argument("--ordinal_class_num", default=50, type=int,
                         help="Number of ordinal class, also need to change the value in data_utils_feature.")
+    parser.add_argument('--model_data_type', type=str, default="UNet_VOC",
+                        help="mode X dataset type, current model type: PSPNet, UNet, DeepLab, FCN, SEGNet, dataset: VOC, CITY, COCO, ADE20k")
+    parser.add_argument("--region_size", default=16, type=int,
+                        help="Region size of active testing.")
     args = parser.parse_args()
 
     # Setup CUDA, GPU & distributed training
