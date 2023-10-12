@@ -26,8 +26,25 @@ num_classes = 51
 # conv_thresholds_patch = torch.linspace(0, 24, steps=num_classes)
 
 # UNet_VOC
-conv_thresholds = torch.linspace(0, 8, steps=num_classes)
-conv_thresholds_patch = torch.linspace(0, 22, steps=num_classes)
+# conv_thresholds = torch.linspace(0, 8, steps=num_classes)
+# conv_thresholds_patch = torch.linspace(0, 22, steps=num_classes) # 16x16
+# conv_thresholds_patch = torch.linspace(0, 16, steps=num_classes) # 32x32
+
+# DeepLab_VOC
+# conv_thresholds = torch.linspace(0, 1.5, steps=num_classes)
+# conv_thresholds_patch = torch.linspace(0, 11, steps=num_classes)
+
+# FCN_VOC
+# conv_thresholds = torch.linspace(0, 2, steps=num_classes)
+# conv_thresholds_patch = torch.linspace(0, 12, steps=num_classes)
+
+# SEGNet_VOC
+# conv_thresholds = torch.linspace(0, 4, steps=num_classes)
+# conv_thresholds_patch = torch.linspace(0, 30, steps=num_classes)
+
+# PSPNet_CITY
+conv_thresholds = torch.linspace(0, 0.5, steps=num_classes)
+conv_thresholds_patch = torch.linspace(0, 11, steps=num_classes)
 
 conv_values = (conv_thresholds[1:] + conv_thresholds[:-1]) / 2
 
@@ -81,16 +98,17 @@ class FeatureDataset(Dataset):
         self.lens = self.annotations.shape[0] if length == 0 else length
         self.shift = shift
         self.avgpool = torch.nn.AdaptiveAvgPool2d((30,30))
+        # self.avgpool = torch.nn.AdaptiveAvgPool2d((15,15))
         self.aug = aug
     
     def __getitem__(self, index):
         index = index + self.shift
         file_name = str(index//8) + ".npy"
-        one_result = np_read_with_tensor_output(self.feature_dir + file_name)
         one_image = np_read_with_tensor_output(self.image_dir + file_name)
         image_index = index % 8
-        feature = one_result[image_index]
-        # feature = np_read_with_tensor_output(self.feature_dir + str(index) + ".npy")
+        # one_result = np_read_with_tensor_output(self.feature_dir + file_name)
+        # feature = one_result[image_index]
+        feature = np_read_with_tensor_output(self.feature_dir + str(index) + ".npy")
         image = one_image[image_index]
         # feature = F.softmax(feature, dim=0)
         # entropy = torch.sum(torch.mul(-feature, torch.log(feature + 1e-20)), dim=0).unsqueeze(dim=0)

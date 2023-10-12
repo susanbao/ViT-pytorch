@@ -122,7 +122,7 @@ def valid(args, model, writer, test_loader, global_step):
                 region_class = region_logits.argmax(dim=2).to(torch.float)
 
                 eval_loss = loss_fct(image_class, y[:,0]) + loss_fct(region_class, y[:,1:])
-                all_preds.extend(tensor_ordinal_to_float_patch(region_logits.reshape(-1, region_logits.shape[2])).tolist())
+                all_preds.extend(tensor_ordinal_to_float(image_logits).tolist())
             elif args.loss_range == "image":
                 image_class = image_logits.argmax(dim=1).to(torch.float)
                 eval_loss = loss_fct(image_class, y[:,0])
