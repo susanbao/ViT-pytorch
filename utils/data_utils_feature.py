@@ -14,16 +14,29 @@ import random
 logger = logging.getLogger(__name__)
 
 # [image, region_16, region_32, region_8]
-CONV_THR_DICT = {"PSPNet_VOC": [1.5, 10],
-                 "UNet_VOC": [0, 22],
-                 "DeepLab_VOC": [1.5, 11],
-                 "FCN_VOC": [2, 12],
-                 "SEGNet_VOC": [4, 30],
-                 "PSPNet_CITY": [0.5, 11],
-                 "UNet_CITY": [3.2, 13.4],
-                 "DeepLab_CITY": [0.7, 11],
-                 "FCN_CITY": [1.1, 11.8],
-                 "SEGNet_VOC": [1.9, 21.4]}
+# CONV_THR_DICT = {"PSPNet_VOC": [1.5, 10],
+#                  "UNet_VOC": [5.1, 17.3, 15.6, 17.7],
+#                  "DeepLab_VOC": [1.5, 11, 7.6, 11.2],
+#                  "FCN_VOC": [2, 12, 9.9, 13.8],
+#                  "SEGNet_VOC": [4, 30, 16.1, 41],
+#                  "PSPNet_CITY": [0.5, 11, 8.7, 13.9],
+#                  "UNet_CITY": [3.2, 13.4, 12, 15],
+#                  "DeepLab_CITY": [0.7, 11, 9.2, 12.1],
+#                  "FCN_CITY": [1.1, 11.8, 9.3, 14],
+#                  "SEGNet_CITY": [1.9, 21.4, 16.8, 23.1]}
+
+CONV_THR_DICT = {"PSPNet_VOC": [1.6, 11, 9.6, 11.5],
+                 "UNet_VOC": [5.1, 17.3, 15.6, 17.7],
+                 "DeepLab_VOC": [1.1, 10.1, 7.6, 11.2],
+                 "FCN_VOC": [1, 12.4, 9.8, 14.2],
+                 "SEGNet_VOC": [1, 13.4, 10.7, 19],
+                 "PSPNet_CITY": [0.4, 10.2, 7.6, 13.9],
+                 "UNet_CITY": [2.5, 12.3, 10.2, 13.3],
+                 "DeepLab_CITY": [0.5, 10.7, 9.7, 12.1],
+                 "FCN_CITY": [0.8, 13.1, 10.1, 14.5],
+                 "SEGNet_CITY": [1.0, 17.3, 12.3, 26],
+                 "UNet_COCO": [7.3, 21.8, 19.4, 24],
+                 "SEGNet_COCO": [3.9, 47.6, 34.1, 97.3]}
 
 # PSPNet_VOC
 # conv_thresholds = torch.linspace(0, 1.5, steps=num_classes)
