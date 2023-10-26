@@ -95,7 +95,7 @@ def write_one_results(path, json_data):
     with open(path, "w") as outfile:
         json.dump(json_data, outfile)        
 
-def valid(args, model, writer, test_loader, global_step):
+def valid(args, model, writer, test_loader, test_datasets, global_step):
     # Validation!
     eval_losses = AverageMeter()
 
@@ -111,7 +111,6 @@ def valid(args, model, writer, test_loader, global_step):
                           dynamic_ncols=True,
                           disable=args.local_rank not in [-1, 0])
     loss_fct = torch.nn.L1Loss()
-    temp_dataset = FeatureDataset(args.data_dir + "val",args.data_dir + "val/image_true_losses.npy", args)
     for step, batch in enumerate(epoch_iterator):
         batch = tuple(t.to(args.device) for t in batch)
         x, y = batch
@@ -123,15 +122,15 @@ def valid(args, model, writer, test_loader, global_step):
                 region_class = region_logits.argmax(dim=2).to(torch.float)
 
                 eval_loss = loss_fct(image_class, y[:,0]) + loss_fct(region_class, y[:,1:])
-                all_preds.extend(tensor_ordinal_to_float(image_logits, temp_dataset.conv_values).tolist())
+                all_preds.extend(tensor_ordinal_to_float(image_logits, test_datasets.conv_values).tolist())
             elif args.loss_range == "image":
                 image_class = image_logits.argmax(dim=1).to(torch.float)
                 eval_loss = loss_fct(image_class, y[:,0])
-                all_preds.extend(tensor_ordinal_to_float(image_logits, temp_dataset.conv_values).tolist())
+                all_preds.extend(tensor_ordinal_to_float(image_logits, test_datasets.conv_values).tolist())
             elif args.loss_range == "region":
                 region_class = region_logits.argmax(dim=2).to(torch.float)
                 eval_loss = loss_fct(region_class, y[:,1:])
-                all_preds.extend(tensor_ordinal_to_float_patch(region_logits.reshape(-1, region_logits.shape[2]), temp_dataset.conv_values_patch).tolist())
+                all_preds.extend(tensor_ordinal_to_float_patch(region_logits.reshape(-1, region_logits.shape[2]), test_datasets.conv_values_patch).tolist())
             else:
                 print(f"loss_range error, {loss_range}")
             eval_losses.update(eval_loss.item())
@@ -159,7 +158,7 @@ def train(args, model):
 
     # Prepare dataset
     # train_loader, test_loader = get_loader_at(args)
-    train_loader, test_loader = get_loader_feature(args)
+    train_loader, test_loader, train_datasets, test_datasets = get_loader_feature(args)
 
     # Prepare optimizer and scheduler
     optimizer = torch.optim.SGD(model.parameters(),
@@ -238,7 +237,7 @@ def train(args, model):
                     writer.add_scalar("train/loss", scalar_value=losses.val, global_step=global_step)
                     writer.add_scalar("train/lr", scalar_value=scheduler.get_lr()[0], global_step=global_step)
                 if global_step % args.eval_every == 0 and args.local_rank in [-1, 0]:
-                    accuracy, all_preds = valid(args, model, writer, test_loader, global_step)
+                    accuracy, all_preds = valid(args, model, writer, test_loader, test_datasets, global_step)
                     if best_acc > accuracy:
                         best_acc = accuracy
                     save_model(args, model, global_step)
