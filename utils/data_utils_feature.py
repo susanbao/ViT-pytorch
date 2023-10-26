@@ -35,8 +35,10 @@ CONV_THR_DICT = {"PSPNet_VOC": [1.6, 11, 9.6, 11.5],
                  "DeepLab_CITY": [0.5, 10.7, 9.7, 12.1],
                  "FCN_CITY": [0.8, 13.1, 10.1, 14.5],
                  "SEGNet_CITY": [1.0, 17.3, 12.3, 26],
+                 "PSPNet_COCO": [1.8, 19.7, 14, 20.8],
                  "UNet_COCO": [7.3, 21.8, 19.4, 24],
-                 "SEGNet_COCO": [3.9, 47.6, 34.1, 97.3]}
+                 "SEGNet_COCO": [3.9, 47.6, 34.1, 97.3],
+                 "FCN_COCO": [2.6, 25.4, 13.7, 33.4]}
 
 # PSPNet_VOC
 # conv_thresholds = torch.linspace(0, 1.5, steps=num_classes)
@@ -230,4 +232,4 @@ def get_loader_feature(args):
                              num_workers=4,
                              pin_memory=True) if test_datasets is not None else None
 
-    return train_loader, test_loader
+    return train_loader, test_loader, train_datasets, test_datasets
