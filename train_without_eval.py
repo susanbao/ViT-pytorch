@@ -107,6 +107,11 @@ def train(args, model):
     # Prepare dataset
     # train_loader, test_loader = get_loader_at(args)
     train_loader, test_loader, _, _ = get_loader_feature(args)
+    
+    if args.load_model:
+        model_checkpoint = f"./output/{args.name}_checkpoint_{args.load_model_steps}.bin"
+        print(f"load model parameter from {model_checkpoint}")
+        model.load_state_dict(torch.load(model_checkpoint))
 
     # Prepare optimizer and scheduler
     optimizer = torch.optim.SGD(model.parameters(),
@@ -115,9 +120,9 @@ def train(args, model):
                                 weight_decay=args.weight_decay)
     t_total = args.num_steps
     if args.decay_type == "cosine":
-        scheduler = WarmupCosineSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=t_total)
+        scheduler = WarmupCosineSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=t_total-args.load_model_steps)
     else:
-        scheduler = WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=t_total)
+        scheduler = WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=t_total-args.load_model_steps)
 
     if args.fp16:
         model, optimizer = amp.initialize(models=model,
@@ -145,6 +150,8 @@ def train(args, model):
     set_seed(args)  # Added here for reproducibility (even between python 2 and 3)
     losses = AverageMeter()
     global_step, best_acc = 0, 100000
+    if args.load_model:
+        global_step = args.load_model_steps
     accuracy = 0
     while True:
         model.train()
@@ -278,6 +285,10 @@ def main():
                         help="mode X dataset type, current model type: PSPNet, UNet, DeepLab, FCN, SEGNet, dataset: VOC, CITY, COCO, ADE20k")
     parser.add_argument("--region_size", default=16, type=int,
                         help="Region size of active testing.")
+    parser.add_argument('--load_model', action='store_true',
+                        help="Whether to load previous trained model")
+    parser.add_argument('--load_model_steps', type=int, default=0,
+                        help="steps of previous load models")
     args = parser.parse_args()
 
     # Setup CUDA, GPU & distributed training

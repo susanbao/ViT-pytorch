@@ -123,12 +123,12 @@ def valid(args, model, writer, test_loader, test_datasets, global_step):
                 image_class = image_logits.argmax(dim=1).to(torch.float)
                 eval_loss = loss_fct(image_class, y[:,0])
                 all_preds.extend(tensor_ordinal_to_float(image_logits, test_datasets.conv_values).tolist())
-            elif args.loss_range == "region":
+            elif args.loss_range == "region" or args.loss_range == "all_region":
                 region_class = region_logits.argmax(dim=2).to(torch.float)
                 eval_loss = loss_fct(region_class, y[:,1:])
                 all_preds.extend(tensor_ordinal_to_float_patch(region_logits.reshape(-1, region_logits.shape[2]), test_datasets.conv_values_patch).tolist())
             else:
-                print(f"loss_range error, {loss_range}")
+                print(f"loss_range error, {args.loss_range}")
             eval_losses.update(eval_loss.item())
             
 
@@ -166,7 +166,13 @@ def train(args, model):
     model.load_state_dict(torch.load(model_checkpoint))
     accuracy, all_preds = valid(args, model, writer, test_loader, test_datasets, args.checkpoint_step)
     
-    path = os.path.join(args.output_dir, f"{args.name}_losses_{args.checkpoint_step}.json")
+    if args.loss_range == "all_region":
+        name = args.name.split("_")
+        name[-1] = args.loss_range
+        name = "_".join(name)
+        path = os.path.join(args.output_dir, f"{name}_losses_{args.checkpoint_step}.json")
+    else:
+        path = os.path.join(args.output_dir, f"{args.name}_losses_{args.checkpoint_step}.json")
     json_objects = {"losses": all_preds}
     write_one_results(path, json_objects)
 

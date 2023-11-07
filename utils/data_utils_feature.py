@@ -38,7 +38,11 @@ CONV_THR_DICT = {"PSPNet_VOC": [1.6, 11, 9.6, 11.5],
                  "PSPNet_COCO": [1.8, 19.7, 14, 20.8],
                  "UNet_COCO": [7.3, 21.8, 19.4, 24],
                  "SEGNet_COCO": [3.9, 47.6, 34.1, 97.3],
-                 "FCN_COCO": [2.6, 25.4, 13.7, 33.4]}
+                 "FCN_COCO": [2.6, 25.4, 13.7, 33.4],
+                 "PSPNet_ADE20K": [3.5, 20.3, 17.9, 21.2],
+                 "UNet_ADE20K": [8.4, 65.5, 57, 69.1],
+                 "SEGNet_ADE20K": [3.7, 41.4, 37.6, 60.6],
+                 "FCN_ADE20K": [3.4, 19.4, 14.8, 31.5]}
 
 # PSPNet_VOC
 # conv_thresholds = torch.linspace(0, 1.5, steps=num_classes)
