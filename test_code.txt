@@ -23,6 +23,8 @@ sh run_model.sh 0 FCN_ADE20K 154 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1
 sh run_model_class.sh 0 FCN_ADE20K 154 90 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
 sh run_model_class.sh 0 FCN_ADE20K 154 40 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
 sh run_model_class.sh 0 UNet_ADE20K 154 90 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
+sh run_model_class.sh 0 PSPNet_ADE20K 154 40 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
+sh run_model_class.sh 0 PSPNet_ADE20K 154 70 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
 
 sh run_model_with_trained.sh 0 FCN_ADE20K 154 20000 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
 sh run_model_with_trained.sh 0 FCN_ADE20K 154 60000 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
