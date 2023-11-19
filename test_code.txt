@@ -7,6 +7,7 @@ sh run_1.sh >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
 
 sh run_1.sh 1 PSPNet_COCO 186 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
 sh run_1.sh 0 FCN_COCO 186 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
+sh run_model.sh 0 PSPNet_COCO 186 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
 sh run_model.sh 0 SEGNet_COCO 186 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
 sh run_model.sh 0 UNet_COCO 186 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
 sh run_model.sh 0 FCN_COCO 186 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
@@ -14,6 +15,10 @@ sh run_model.sh 0 FCN_COCO 186 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.e
 sh run_model_class.sh 0 SEGNet_COCO 186 90 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
 # only run all verson
 sh run_model_class.sh 0 PSPNet_COCO 186 40 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
+sh run_model_class.sh 0 PSPNet_COCO 186 90 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
+sh run_model_class.sh 0 PSPNet_COCO 186 30 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
+sh run_model_class.sh 0 PSPNet_COCO 186 80 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
+sh run_model_class.sh 0 PSPNet_COCO 186 60 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
 
 sh run_model.sh 0 PSPNet_ADE20K 154 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
 sh run_model.sh 0 UNet_ADE20K 154 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
@@ -26,10 +31,54 @@ sh run_model_class.sh 0 UNet_ADE20K 154 90 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_
 sh run_model_class.sh 0 PSPNet_ADE20K 154 40 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
 sh run_model_class.sh 0 PSPNet_ADE20K 154 70 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
 
+sh run_model_class.sh 1 SEGNet_VOC 25 40 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
+sh run_model_class.sh 2 SEGNet_VOC 25 90 >logs/ViT_UNet_VOC_2.logs 2>logs/ViT_UNet_VOC_2.err&
+sh run_model_class.sh 1 SEGNet_VOC 25 30 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
+sh run_model_class.sh 2 SEGNet_VOC 25 80 >logs/ViT_UNet_VOC_2.logs 2>logs/ViT_UNet_VOC_2.err&
+
+sh run_model_class.sh 1 PSPNet_VOC 25 40 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
+sh run_model_class.sh 2 PSPNet_VOC 25 90 >logs/ViT_UNet_VOC_2.logs 2>logs/ViT_UNet_VOC_2.err&
+sh run_model_class.sh 1 PSPNet_VOC 25 60 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
+sh run_model_class.sh 2 PSPNet_VOC 25 70 >logs/ViT_UNet_VOC_2.logs 2>logs/ViT_UNet_VOC_2.err&
+sh run_model_class.sh 1 PSPNet_VOC 25 30 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
+sh run_model_class.sh 2 PSPNet_VOC 25 80 >logs/ViT_UNet_VOC_2.logs 2>logs/ViT_UNet_VOC_2.err&
+
+sh run_model_class.sh 1 UNet_VOC 25 40 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
+sh run_model_class.sh 2 UNet_VOC 25 90 >logs/ViT_UNet_VOC_2.logs 2>logs/ViT_UNet_VOC_2.err&
+
+sh run_model_class.sh 1 FCN_VOC 25 40 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
+sh run_model_class.sh 2 FCN_VOC 25 90 >logs/ViT_UNet_VOC_2.logs 2>logs/ViT_UNet_VOC_2.err&
+
+sh run_model_class.sh 1 FCN_CITY 23 40 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
+sh run_model_class.sh 2 FCN_CITY 23 90 >logs/ViT_UNet_VOC_2.logs 2>logs/ViT_UNet_VOC_2.err&
+
+sh run_model_class.sh 1 PSPNet_CITY 23 40 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
+sh run_model_class.sh 2 PSPNet_CITY 23 90 >logs/ViT_UNet_VOC_2.logs 2>logs/ViT_UNet_VOC_2.err&
+sh run_model_class.sh 1 PSPNet_CITY 23 30 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
+sh run_model_class.sh 2 PSPNet_CITY 23 80 >logs/ViT_UNet_VOC_2.logs 2>logs/ViT_UNet_VOC_2.err&
+
+sh run_model_class.sh 1 UNet_CITY 23 30 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
+sh run_model_class.sh 2 UNet_CITY 23 40 >logs/ViT_UNet_VOC_2.logs 2>logs/ViT_UNet_VOC_2.err&
+sh run_model_class.sh 1 UNet_CITY 23 80 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
+sh run_model_class.sh 2 UNet_CITY 23 90 >logs/ViT_UNet_VOC_2.logs 2>logs/ViT_UNet_VOC_2.err&
+sh run_model_class.sh 1 UNet_CITY 23 60 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
+sh run_model_class.sh 2 UNet_CITY 23 70 >logs/ViT_UNet_VOC_2.logs 2>logs/ViT_UNet_VOC_2.err&
+sh run_model_class.sh 1 UNet_CITY 23 10 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
+sh run_model_class.sh 2 UNet_CITY 23 20 >logs/ViT_UNet_VOC_2.logs 2>logs/ViT_UNet_VOC_2.err&
+sh run_model_class.sh 1 UNet_CITY 23 100 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
+sh run_model_class.sh 2 UNet_CITY 23 110 >logs/ViT_UNet_VOC_2.logs 2>logs/ViT_UNet_VOC_2.err&
+sh run_model_class.sh 1 UNet_CITY 23 20
+
 sh run_model_with_trained.sh 0 FCN_ADE20K 154 20000 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
 sh run_model_with_trained.sh 0 FCN_ADE20K 154 60000 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
+sh run_model_with_trained.sh 0 SEGNet_ADE20K 154 20000 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
 
 sh run_model_with_trained.sh 0 PSPNet_COCO 186 20000 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
+sh run_model_with_trained.sh 0 SEGNet_COCO 186 20000 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
+sh run_model_with_trained.sh 0 PSPNet_COCO 186 60000 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
+
+sh run_model_all_with_32.sh 0 PSPNet_ADE20K 154 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
+sh run_model_all_with_32.sh 0 UNet_ADE20K 154 >logs/ViT_UNet_VOC_1.logs 2>logs/ViT_UNet_VOC_1.err&
 
 CUDA_VISIBLE_DEVICES=1 python3 train_at.py --name ViT-feature-Nearest-train-60000 --gradient_accumulation_steps 4 --model_type ViT-B_16 --pretrained_dir ../ViT_ckpts/ViT-B_16.npz --train_batch_size 128 --data_dir ../orkspace/DINO/data/5_scale_31/ --data_name feature_box_level_ViT --input_feature_dim 1536 --num_steps 100000 --eval_every 1000 --loss_type loss >logs/ViT-feature-test.logs 2>logs/ViT-feature-test.err&
 
