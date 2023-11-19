@@ -141,20 +141,34 @@ class Embeddings(nn.Module):
     def __init__(self, config, img_size, in_channels=3):
         super(Embeddings, self).__init__()
         self.hybrid = None
-        img_size = _pair(img_size)
-        patch_size = _pair(config.patches["size"])
-        n_patches = (img_size[0] // patch_size[0]) * (img_size[1] // patch_size[1])
+        # img_size = _pair(img_size)
+        # patch_size = _pair(config.patches["size"])
+        # n_patches = (img_size[0] // patch_size[0]) * (img_size[1] // patch_size[1])
+        n_patches = img_size
         self.hybrid = False
         self.patch_embeddings = Linear(config.input_feature_dim, config.hidden_size)
         
         self.position_embeddings = nn.Parameter(torch.zeros(1, n_patches+1, config.hidden_size))
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, config.hidden_size))
 
         self.dropout = Dropout(config.transformer["dropout_rate"])
 
     def forward(self, x):
-        x = self.patch_embeddings(x) # [batch_size * n_patches+1 * hidden_size], n_patches=196, hidden_size=768
-        # token = self.patch_embeddings(token) 
-        # x = torch.cat((token, x), dim=1) 
+        # x = self.patch_embeddings(x) # [batch_size * n_patches+1 * hidden_size], n_patches=196, hidden_size=768
+        # # token = self.patch_embeddings(token) 
+        # # x = torch.cat((token, x), dim=1) 
+        # embeddings = x + self.position_embeddings
+        # embeddings = self.dropout(embeddings)
+        
+        B = x.shape[0]
+        cls_tokens = self.cls_token.expand(B, -1, -1)
+
+        if self.hybrid:
+            x = self.hybrid_model(x)
+        x = self.patch_embeddings(x)
+        x = x.flatten(2)
+        x = torch.cat((cls_tokens, x), dim=1)
+
         embeddings = x + self.position_embeddings
         embeddings = self.dropout(embeddings)
         return embeddings
@@ -271,7 +285,7 @@ class Transformer(nn.Module):
 
 
 class ActiveTestVisionTransformer(nn.Module):
-    def __init__(self, config, img_size=224, num_classes=50, zero_head=True, vis=False):
+    def __init__(self, config, img_size=900, num_classes=50, zero_head=True, vis=False):
         super(ActiveTestVisionTransformer, self).__init__()
         self.num_classes = num_classes
         self.zero_head = zero_head

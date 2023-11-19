@@ -14,7 +14,11 @@ normalize_list = {"loss_bbox": [0.09300409561655773, 0.0767726528828114], "loss_
 
 num_classes = 51
 
-conv_thresholds = torch.linspace(0, 10, steps=num_classes)
+# region
+# conv_thresholds = torch.linspace(0, 10, steps=num_classes)
+
+# region
+conv_thresholds = torch.linspace(0, 4.1, steps=num_classes)
 
 conv_values = (conv_thresholds[1:] + conv_thresholds[:-1]) / 2
 
@@ -72,6 +76,21 @@ class FeatureDataset(Dataset):
     
     def __len__(self):
         return self.lens
+    
+class FeatureDatasetImage(Dataset):
+    def __init__(self, annotation_dir, feature_dir):
+        self.annotations = np_read_with_tensor_output(annotation_dir)
+        self.annotations = tensor_float_to_ordinal(self.annotations)
+        self.feature_dir = feature_dir
+        self.lens = self.annotations.shape[0]
+    
+    def __getitem__(self, index):
+        feature = np_read_with_tensor_output(self.feature_dir + f"{index}.npy")
+        annotation = self.annotations[index]
+        return tuple((feature, annotation))
+    
+    def __len__(self):
+        return self.lens
 
 def get_loader_feature(args):
     if args.local_rank not in [-1, 0]:
@@ -80,21 +99,34 @@ def get_loader_feature(args):
     model_data_path = args.data_dir
     data_name = args.data_name
     loss_type = args.loss_type
-    if loss_type == "loss":
-        annotation_name = "annotation.npy"
+    if args.loss_range == "region":
+        if loss_type == "loss":
+            annotation_name = "annotation.npy"
+        else:
+            annotation_name = f"annotation_{loss_type}.npy"
+        split = "train"
+        store_preprocess_inputs_path = model_data_path + split + "/feature_pre_data/"
+        store_preprocess_annotations_path = model_data_path + split + "/feature_pre_data/" + annotation_name
+        feature_path = model_data_path + split + "/feature_data/"
+        train_datasets = FeatureDataset(store_preprocess_inputs_path, store_preprocess_annotations_path, feature_path, loss_type)
+
+        split = "val"
+        store_preprocess_inputs_path = model_data_path + split + "/feature_pre_data/"
+        store_preprocess_annotations_path = model_data_path + split + "/feature_pre_data/" + annotation_name
+        feature_path = model_data_path + split + "/feature_data/"
+        test_datasets = FeatureDataset(store_preprocess_inputs_path, store_preprocess_annotations_path, feature_path, loss_type)
     else:
-        annotation_name = f"annotation_{loss_type}.npy"
-    split = "train"
-    store_preprocess_inputs_path = model_data_path + split + "/feature_pre_data/"
-    store_preprocess_annotations_path = model_data_path + split + "/feature_pre_data/" + annotation_name
-    feature_path = model_data_path + split + "/feature_data/"
-    train_datasets = FeatureDataset(store_preprocess_inputs_path, store_preprocess_annotations_path, feature_path, loss_type)
-    
-    split = "val"
-    store_preprocess_inputs_path = model_data_path + split + "/feature_pre_data/"
-    store_preprocess_annotations_path = model_data_path + split + "/feature_pre_data/" + annotation_name
-    feature_path = model_data_path + split + "/feature_data/"
-    test_datasets = FeatureDataset(store_preprocess_inputs_path, store_preprocess_annotations_path, feature_path, loss_type)
+        split = "train"
+        store_preprocess_inputs_path = model_data_path + split + "/pre_data/"
+        store_preprocess_annotations_path = store_preprocess_inputs_path + "train_annotations.npy"
+        store_preprocess_feature_path = model_data_path + split + "/feature/"
+        train_datasets = FeatureDatasetImage(store_preprocess_annotations_path, store_preprocess_feature_path)
+        
+        split = "val"
+        store_preprocess_inputs_path = model_data_path + split + "/pre_data/"
+        store_preprocess_annotations_path = store_preprocess_inputs_path + "val_annotations.npy"
+        store_preprocess_feature_path = model_data_path + split + "/feature/"
+        test_datasets = FeatureDatasetImage(store_preprocess_annotations_path, store_preprocess_feature_path)
 
     if args.local_rank == 0:
         torch.distributed.barrier()

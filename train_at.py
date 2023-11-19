@@ -312,6 +312,8 @@ def main():
                         help="Whether to enable wandb")
     parser.add_argument('--enable_backbone_grad', action='store_true',
                         help="Whether to enable the retraining of backbone")
+    parser.add_argument('--loss_range', type=str, default="region",
+                        help="considered region/image for loss: all, region, image")
     args = parser.parse_args()
 
     # Setup CUDA, GPU & distributed training
