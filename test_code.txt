@@ -1,3 +1,5 @@
+conda env: at_seg, at_det
+
 /workspace/ViT-pytorch/models/modeling_seg.py
 /workspace/ViT-pytorch/utils/data_utils_feature.py
 
