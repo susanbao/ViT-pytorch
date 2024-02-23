@@ -14,13 +14,11 @@ import torch.distributed as dist
 
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
-from apex import amp
-from apex.parallel import DistributedDataParallel as DDP
 
 from models.modeling_at import ActiveTestVisionTransformer, CONFIGS, FocalLoss
 from utils.scheduler import WarmupLinearSchedule, WarmupCosineSchedule
 from utils.data_utils_at import get_loader_at
-from utils.data_utils_feature import get_loader_feature, tensor_ordinal_to_float
+from utils.data_utils_feature import get_loader_feature, tensor_ordinal_to_float, tensor_ordinal_to_float_patch
 from utils.dist_util import get_world_size
 import ipdb
 import json
@@ -65,7 +63,8 @@ def setup(args):
     config = CONFIGS[args.model_type]
     config.input_feature_dim = args.input_feature_dim
     config.ash_per = args.ash_per
-    model = ActiveTestVisionTransformer(config)
+    config.loss_range = args.loss_range
+    model = ActiveTestVisionTransformer(config, num_classes = args.ordinal_class_num)
     model.load_from(np.load(args.pretrained_dir), requires_grad = args.enable_backbone_grad)
     # model.load_state_dict(torch.from_numpy(np.load(args.pretrained_dir)))
     model.to(args.device)
@@ -94,7 +93,7 @@ def write_one_results(path, json_data):
     with open(path, "w") as outfile:
         json.dump(json_data, outfile)        
 
-def valid(args, model, writer, test_loader, global_step):
+def valid(args, model, writer, test_loader, test_datasets, global_step):
     # Validation!
     eval_losses = AverageMeter()
 
@@ -103,22 +102,59 @@ def valid(args, model, writer, test_loader, global_step):
     logger.info("  Batch size = %d", args.eval_batch_size)
 
     model.eval()
-    all_preds = []
+    image_preds = []
+    region_preds = []
     epoch_iterator = tqdm(test_loader,
                           desc="Validating... (loss=X.X)",
                           bar_format="{l_bar}{r_bar}",
                           dynamic_ncols=True,
                           disable=args.local_rank not in [-1, 0])
     loss_fct = FocalLoss()
+    conv_values_patch = test_datasets.conv_values_patch.to(args.device)
+    conv_values = test_datasets.conv_values.to(args.device)
     for step, batch in enumerate(epoch_iterator):
         batch = tuple(t.to(args.device) for t in batch)
         x, y = batch
         with torch.no_grad():
-            logits = model(x)[0]
+            image_logits, _, region_logits = model(x)
+            if args.loss_range == "all":
+                # image_class = image_logits.argmax(dim=1).to(torch.float)
+                # region_class = region_logits.argmax(dim=2).to(torch.float)
 
-            eval_loss = loss_fct(logits, y)
+                eval_loss = loss_fct(image_logits, y[:,0]) + loss_fct(region_logits.reshape(-1, region_logits.shape[2]), y[:,1:].reshape(-1))
+                image_preds.extend(tensor_ordinal_to_float(image_logits, conv_values).tolist())
+
+                new_region_logits = None
+                for i in range(region_logits.shape[0]):
+                    region_labels = y[i, 1:]
+                    selected_index = region_labels < 255
+                    region_logit = region_logits[i, selected_index, :]
+                    if new_region_logits is None:
+                        new_region_logits = region_logit
+                    else:
+                        new_region_logits = torch.cat((new_region_logits, region_logit), dim=0)
+                region_preds.extend(tensor_ordinal_to_float_patch(new_region_logits, conv_values_patch).tolist())       
+            elif args.loss_range == "image":
+                # image_class = image_logits.argmax(dim=1).to(torch.float)
+                eval_loss = loss_fct(image_logits, y[:,0])
+                image_preds.extend(tensor_ordinal_to_float(image_logits, conv_values).tolist())
+            elif args.loss_range == "region":
+                # region_class = region_logits.argmax(dim=2).to(torch.float)
+                eval_loss = loss_fct(region_logits.reshape(-1, region_logits.shape[2]), y[:,1:].reshape(-1))
+                new_region_logits = None
+                for i in range(region_logits.shape[0]):
+                    region_labels = y[i, 1:]
+                    selected_index = region_labels < 255
+                    region_logit = region_logits[i, selected_index, :]
+                    if new_region_logits is None:
+                        new_region_logits = region_logit
+                    else:
+                        new_region_logits = torch.cat((new_region_logits, region_logit), dim=0)
+                region_preds.extend(tensor_ordinal_to_float_patch(new_region_logits, conv_values_patch).tolist()) 
+            else:
+                print(f"loss_range error, {loss_range}")
             eval_losses.update(eval_loss.item())
-            all_preds.extend(tensor_ordinal_to_float(logits).tolist())
+            
 
         epoch_iterator.set_description("Validating... (loss=%2.5f)" % eval_losses.val)
 
@@ -128,7 +164,7 @@ def valid(args, model, writer, test_loader, global_step):
     logger.info("Valid Loss: %2.5f" % eval_losses.avg)
 
     writer.add_scalar("test/loss", scalar_value=eval_losses.avg, global_step=global_step)
-    return eval_losses.avg, all_preds
+    return eval_losses.avg, image_preds, region_preds
 
 
 def train(args, model):
@@ -142,7 +178,7 @@ def train(args, model):
 
     # Prepare dataset
     # train_loader, test_loader = get_loader_at(args)
-    train_loader, test_loader = get_loader_feature(args)
+    train_loader, test_loader, train_datasets, test_datasets = get_loader_feature(args)
 
     # Prepare optimizer and scheduler
     optimizer = torch.optim.SGD(model.parameters(),
@@ -161,9 +197,7 @@ def train(args, model):
                                           opt_level=args.fp16_opt_level)
         amp._amp_state.loss_scalers[0]._loss_scale = 2**20
 
-    # Distributed training
-    if args.local_rank != -1:
-        model = DDP(model, message_size=250000000, gradient_predivide_factor=get_world_size())
+    
     if args.enable_wandb:
         wandb.watch(model, log="all")
 
@@ -204,10 +238,7 @@ def train(args, model):
 
             if (step + 1) % args.gradient_accumulation_steps == 0:
                 losses.update(loss.item()*args.gradient_accumulation_steps)
-                if args.fp16:
-                    torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), args.max_grad_norm)
-                else:
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
                 scheduler.step()
                 optimizer.step()
                 optimizer.zero_grad()
@@ -220,13 +251,25 @@ def train(args, model):
                     writer.add_scalar("train/loss", scalar_value=losses.val, global_step=global_step)
                     writer.add_scalar("train/lr", scalar_value=scheduler.get_lr()[0], global_step=global_step)
                 if global_step % args.eval_every == 0 and args.local_rank in [-1, 0]:
-                    accuracy, all_preds = valid(args, model, writer, test_loader, global_step)
+                    accuracy, image_preds, region_preds = valid(args, model, writer, test_loader, test_datasets, global_step)
                     if best_acc > accuracy:
                         best_acc = accuracy
                     save_model(args, model, global_step)
-                    path = os.path.join(args.output_dir, f"{args.name}_losses_{global_step}.json")
-                    json_objects = {"losses": all_preds}
-                    write_one_results(path, json_objects)
+                    if args.loss_range == "all":
+                        path = os.path.join(args.output_dir, f"{args.name}_image_losses_{global_step}.json")
+                        json_objects = {"losses": image_preds}
+                        write_one_results(path, json_objects)
+                        path = os.path.join(args.output_dir, f"{args.name}_region_losses_{global_step}.json")
+                        json_objects = {"losses": region_preds}
+                        write_one_results(path, json_objects)
+                    elif args.loss_range == "image":
+                        path = os.path.join(args.output_dir, f"{args.name}_losses_{global_step}.json")
+                        json_objects = {"losses": image_preds}
+                        write_one_results(path, json_objects)
+                    elif args.loss_range == "region":
+                        path = os.path.join(args.output_dir, f"{args.name}_losses_{global_step}.json")
+                        json_objects = {"losses": region_preds}
+                        write_one_results(path, json_objects)
                     model.train()
 
                 if global_step % t_total == 0:
@@ -249,7 +292,7 @@ def main():
     # Required parameters
     parser.add_argument("--name", required=True,
                         help="Name of this run. Used for monitoring.")
-    parser.add_argument("--model_type", choices=["ViT-B_16", "ViT-B_32", "ViT-L_16",
+    parser.add_argument("--model_type", choices=["ViT-B_8", "ViT-B_16", "ViT-B_32", "ViT-L_16",
                                                  "ViT-L_32", "ViT-H_14", "R50-ViT-B_16"],
                         default="ViT-B_16",
                         help="Which variant to use.")
@@ -268,7 +311,7 @@ def main():
     parser.add_argument("--loss_type", default="loss", type=str,
                         help="The estimated loss type: loss, loss_ce, loss_bbox, loss_giou")
 
-    parser.add_argument("--img_size", default=224, type=int,
+    parser.add_argument("--img_size", default=480, type=int,
                         help="Resolution size")
     parser.add_argument("--train_batch_size", default=512, type=int,
                         help="Total batch size for training.")
@@ -308,12 +351,18 @@ def main():
                              "Positive power of 2: static loss scaling value.\n")
     parser.add_argument('--encoder_weight_train', action='store_true',
                         help="Whether to use 16-bit float precision instead of 32-bit")
-    parser.add_argument('--enable_wandb', action='store_true',
-                        help="Whether to enable wandb")
     parser.add_argument('--enable_backbone_grad', action='store_true',
                         help="Whether to enable the retraining of backbone")
-    parser.add_argument('--loss_range', type=str, default="region",
+    parser.add_argument('--enable_wandb', action='store_true',
+                        help="Whether to enable wandb")
+    parser.add_argument('--loss_range', type=str, default="all",
                         help="considered region/image for loss: all, region, image")
+    parser.add_argument("--ordinal_class_num", default=50, type=int,
+                        help="Number of ordinal class, also need to change the value in data_utils_feature.")
+    parser.add_argument('--model_data_type', type=str, default="UNet_VOC",
+                        help="mode X dataset type, current model type: PSPNet, UNet, DeepLab, FCN, SEGNet, dataset: VOC, CITY, COCO, ADE20k")
+    parser.add_argument("--region_size", default=16, type=int,
+                        help="Region size of active testing.")
     args = parser.parse_args()
 
     # Setup CUDA, GPU & distributed training
@@ -355,7 +404,6 @@ def main():
 
     # Training
     train(args, model)
-    
     if args.enable_wandb:
         wandb.finish()
 
