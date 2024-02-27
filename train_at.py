@@ -66,7 +66,9 @@ def setup(args):
     config.loss_range = args.loss_range
     model = ActiveTestVisionTransformer(config, num_classes = args.ordinal_class_num)
     model.load_from(np.load(args.pretrained_dir), requires_grad = args.enable_backbone_grad)
-    # model.load_state_dict(torch.from_numpy(np.load(args.pretrained_dir)))
+    if args.load_trained:
+        # model.load_state_dict(torch.from_numpy(np.load(args.trained_dir)))
+        model.load_state_dict(torch.load(args.trained_dir))
     model.to(args.device)
     num_params = count_parameters(model)
 
@@ -214,6 +216,8 @@ def train(args, model):
     set_seed(args)  # Added here for reproducibility (even between python 2 and 3)
     losses = AverageMeter()
     global_step, best_acc = 0, 100000
+    if args.load_trained:
+        global_step = args.init_step
     accuracy = 0
     while True:
         model.train()
@@ -363,6 +367,12 @@ def main():
                         help="mode X dataset type, current model type: PSPNet, UNet, DeepLab, FCN, SEGNet, dataset: VOC, CITY, COCO, ADE20k")
     parser.add_argument("--region_size", default=16, type=int,
                         help="Region size of active testing.")
+    parser.add_argument("--trained_dir", type=str, default="",
+                        help="Where to search for trained ViT models.")
+    parser.add_argument('--load_trained', action='store_true',
+                        help="Whether to load trained model")
+    parser.add_argument('--init_step', type=int, default=0,
+                        help="init step")
     args = parser.parse_args()
 
     # Setup CUDA, GPU & distributed training
