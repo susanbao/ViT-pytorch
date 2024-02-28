@@ -14,7 +14,8 @@ logger = logging.getLogger(__name__)
 # conv_thresholds = torch.linspace(0, 10, steps=num_classes)
 
 # region
-CONV_THR_DICT = {"DETR_COCO": [35, 37]}
+CONV_THR_DICT = {"DETR_COCO": [35, 37],
+                "DFDETR_COCO": [8, 9]}
 
 
 def np_read_with_tensor_output(file):

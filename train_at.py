@@ -64,7 +64,7 @@ def setup(args):
     config.input_feature_dim = args.input_feature_dim
     config.ash_per = args.ash_per
     config.loss_range = args.loss_range
-    model = ActiveTestVisionTransformer(config, num_classes = args.ordinal_class_num)
+    model = ActiveTestVisionTransformer(config, img_size = args.patch_nums, num_classes = args.ordinal_class_num)
     model.load_from(np.load(args.pretrained_dir), requires_grad = args.enable_backbone_grad)
     if args.load_trained:
         # model.load_state_dict(torch.from_numpy(np.load(args.trained_dir)))
@@ -170,7 +170,6 @@ def valid(args, model, writer, test_loader, test_datasets, global_step):
 
 
 def train(args, model):
-    # ipdb.set_trace()
     """ Train the model """
     if args.local_rank in [-1, 0]:
         os.makedirs(args.output_dir, exist_ok=True)
@@ -373,6 +372,8 @@ def main():
                         help="Whether to load trained model")
     parser.add_argument('--init_step', type=int, default=0,
                         help="init step")
+    parser.add_argument('--patch_nums', type=int, default=100,
+                        help="number of patch for ViT")
     args = parser.parse_args()
 
     # Setup CUDA, GPU & distributed training
@@ -408,7 +409,7 @@ def main():
             name=args.name,
             job_type="training"
         )
-
+    # ipdb.set_trace()
     # Model & Tokenizer Setup
     args, model = setup(args)
 
