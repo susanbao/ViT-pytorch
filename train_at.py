@@ -187,6 +187,8 @@ def train(args, model):
                                 momentum=0.9,
                                 weight_decay=args.weight_decay)
     t_total = args.num_steps
+    if args.load_trained:
+        t_total -= args.init_step
     if args.decay_type == "cosine":
         scheduler = WarmupCosineSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=t_total)
     else:
