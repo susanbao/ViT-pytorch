@@ -111,7 +111,10 @@ def valid(args, model, writer, test_loader, test_datasets, global_step):
                           bar_format="{l_bar}{r_bar}",
                           dynamic_ncols=True,
                           disable=args.local_rank not in [-1, 0])
-    loss_fct = FocalLoss()
+    if args.loss_range == "nobin":
+        loss_fct = torch.nn.SmoothL1Loss()
+    else:
+        loss_fct = FocalLoss()
     conv_values_patch = test_datasets.conv_values_patch.to(args.device)
     conv_values = test_datasets.conv_values.to(args.device)
     for step, batch in enumerate(epoch_iterator):
@@ -152,7 +155,10 @@ def valid(args, model, writer, test_loader, test_datasets, global_step):
                         new_region_logits = region_logit
                     else:
                         new_region_logits = torch.cat((new_region_logits, region_logit), dim=0)
-                region_preds.extend(tensor_ordinal_to_float_patch(new_region_logits, conv_values_patch).tolist()) 
+                region_preds.extend(tensor_ordinal_to_float_patch(new_region_logits, conv_values_patch).tolist())
+            elif args.loss_range == "nobin":
+                eval_loss = loss_fct(image_logits, y[:,0])
+                image_preds.extend(image_logits.reshape(-1).tolist())
             else:
                 print(f"loss_range error, {loss_range}")
             eval_losses.update(eval_loss.item())
@@ -187,12 +193,10 @@ def train(args, model):
                                 momentum=0.9,
                                 weight_decay=args.weight_decay)
     t_total = args.num_steps
-    if args.load_trained:
-        t_total -= args.init_step
     if args.decay_type == "cosine":
-        scheduler = WarmupCosineSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=t_total)
+        scheduler = WarmupCosineSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=t_total - args.init_step)
     else:
-        scheduler = WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=t_total)
+        scheduler = WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=t_total - args.init_step)
 
     if args.fp16:
         model, optimizer = amp.initialize(models=model,
@@ -267,7 +271,7 @@ def train(args, model):
                         path = os.path.join(args.output_dir, f"{args.name}_region_losses_{global_step}.json")
                         json_objects = {"losses": region_preds}
                         write_one_results(path, json_objects)
-                    elif args.loss_range == "image":
+                    elif args.loss_range == "image" or args.loss_range == "nobin":
                         path = os.path.join(args.output_dir, f"{args.name}_losses_{global_step}.json")
                         json_objects = {"losses": image_preds}
                         write_one_results(path, json_objects)

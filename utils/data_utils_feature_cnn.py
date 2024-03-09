@@ -7,7 +7,7 @@ import os
 from torchvision import transforms, datasets
 from torch.utils.data import DataLoader, RandomSampler, DistributedSampler, SequentialSampler, TensorDataset, Dataset
 import json
-
+import math
 logger = logging.getLogger(__name__)
 
 # region
@@ -64,30 +64,23 @@ class FeatureDataset(Dataset):
         self.conv_values_patch = (self.conv_thresholds_patch[1:] + self.conv_thresholds_patch[:-1]) / 2
 
         self.annotations = np_read_with_tensor_output(annotation_dir)
-        if args.loss_range != "nobin":
-            self.annotations = tensor_float_to_ordinal(self.annotations, self.conv_thresholds)
+        self.annotations = tensor_float_to_ordinal(self.annotations, self.conv_thresholds)
         self.feature_dir = input_dir + "/feature/"
         self.annotation_dir = input_dir + "/annotation/"
         self.lens = self.annotations.shape[0] if length == 0 else length
         self.shift = shift
-        self.loss_range = args.loss_range
     
     def __getitem__(self, index):
         index = index + self.shift
         feature = np_read_with_tensor_output(self.feature_dir + str(index)+".npy")
         feature = (feature - feature.mean()) / feature.std()
+        feature = torch.transpose(feature, 0, 1)
+        first_axis = feature.shape[1]
+        first_axis = int(math.sqrt(first_axis))
+        feature = feature.reshape((feature.shape[0], first_axis, first_axis))
         
-        one_annotation = read_one_json_results(self.annotation_dir+ str(index)+".json")
-        patch_loss = torch.tensor(one_annotation['loss'])
         img_loss = self.annotations[index]
-        patch_index = torch.tensor(one_annotation['index'])
-        if self.loss_range != "nobin":
-            patch_loss = tensor_float_to_ordinal_patch(patch_loss, self.conv_thresholds_patch)
-
-        annotation = torch.full((feature.shape[0],), 255, dtype=patch_loss.dtype)
-        annotation[patch_index] = patch_loss
-        annotation = torch.cat((img_loss.unsqueeze(0), annotation), dim=0)
-        return tuple((feature, annotation))
+        return tuple((feature, img_loss))
     
     def __len__(self):
         return self.lens

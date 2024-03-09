@@ -316,6 +316,7 @@ class ActiveTestVisionTransformer(nn.Module):
         self.single_head = Linear(self.inter_dim, num_classes)
         self.focal_loss = FocalLoss()
         self.loss_range = config.loss_range
+        self.smoothl1loss = nn.SmoothL1Loss()
 
     def forward(self, x, labels=None):
         x, attn_weights = self.transformer(x)
@@ -334,6 +335,8 @@ class ActiveTestVisionTransformer(nn.Module):
                 patch_estimates = patch_estimates.reshape((-1,patch_estimates.shape[2]))
                 patch_labels = labels[:,1:].reshape(-1)
                 loss = self.focal_loss(patch_estimates, patch_labels)
+            elif self.loss_range == "nobin":
+                loss = self.smoothl1loss(whole_estimates, labels[:,0])
             return loss
         else:
             return whole_estimates, attn_weights, patch_estimates

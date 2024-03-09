@@ -14,22 +14,72 @@ import torch.distributed as dist
 
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
-from apex import amp
-from apex.parallel import DistributedDataParallel as DDP
 
 from models.modeling_at import ActiveTestVisionTransformer, CONFIGS
 from utils.scheduler import WarmupLinearSchedule, WarmupCosineSchedule
 from utils.data_utils_at import get_loader_at
-from utils.data_utils_feature import get_loader_feature
+from utils.data_utils_feature_cnn import get_loader_feature, get_loader_feature, tensor_ordinal_to_float, tensor_ordinal_to_float_patch
 from utils.dist_util import get_world_size
 import ipdb
 import json
 import wandb
 import socket
 from torch import nn
+from torchvision.models import resnet18
 
 
 logger = logging.getLogger(__name__)
+
+class FocalLoss(nn.Module):
+    def __init__(self, gamma=2, alpha=None, ignore_index=255, size_average=True):
+        super(FocalLoss, self).__init__()
+        self.gamma = gamma
+        self.size_average = size_average
+        self.CE_loss = nn.CrossEntropyLoss(reduce=False, ignore_index=ignore_index, weight=alpha)
+
+    def forward(self, output, target):
+        logpt = self.CE_loss(output, target)
+        pt = torch.exp(-logpt)
+        loss = ((1-pt)**self.gamma) * logpt
+        if self.size_average:
+            return loss.mean()
+        return loss.sum()
+
+class MLP(nn.Module):
+    def __init__(self, input_size, hidden_sizes, output_size):
+        super(MLP, self).__init__()
+        layers = []
+        layer_sizes = [input_size] + hidden_sizes + [output_size]
+        self.loss_function = FocalLoss()
+
+        for i in range(len(layer_sizes) - 1):
+            layers.append(nn.Linear(layer_sizes[i], layer_sizes[i+1]))
+            if i < len(layer_sizes) - 2:
+                layers.append(nn.LayerNorm(layer_sizes[i+1]))  # Adding LayerNorm between hidden layers
+                layers.append(nn.ReLU())  # Adding ReLU activation between hidden layers
+
+        self.model = nn.Sequential(*layers)
+
+        self.global_avg_pooling = nn.AdaptiveAvgPool2d(1)
+
+        self.init_weights()
+
+    def init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.kaiming_uniform_(m.weight, nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+
+    def forward(self, x, labels=None):
+        x = self.global_avg_pooling(x)
+        x = x.view(x.shape[0], -1)
+        x = self.model(x)
+        if labels is not None:
+            loss = self.loss_function(x, labels)
+            return loss
+        else:
+            return x, None
 
 class MPLNet(nn.Module):
     def __init__(self, input_dims = 10000, output_dims = 1, dropout = 0.1):
@@ -69,6 +119,42 @@ class MPLNet(nn.Module):
         else:
             return x, None
 
+# Define the Ridge Regression model using nn.Module
+class RidgeRegression(nn.Module):
+    def __init__(self, input_size, output_size, alpha=1.0):
+        super(RidgeRegression, self).__init__()
+        self.alpha = alpha
+        self.linear = nn.Linear(input_size, output_size)
+        self.loss_function = torch.nn.MSELoss(reduction='mean')
+
+    def forward(self, x, labels=None):
+        x = self.linear(x)
+        if labels is not None:
+            loss = self.loss_function(x, labels)
+            return loss
+        else:
+            return x, None
+
+# Define the ResNet-18 regression model
+class ResNetRegression(nn.Module):
+    def __init__(self, input_channels, output_size):
+        super(ResNetRegression, self).__init__()
+        self.resnet = resnet18(pretrained=True)
+        # Modify the first layer to accommodate the specified input_channels
+        self.resnet.conv1 = nn.Conv2d(input_channels, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.resnet.fc = nn.Linear(512, output_size)  # Change the fully connected layer to output_size units
+        self.loss_function = FocalLoss()
+        nn.init.kaiming_uniform_(self.resnet.conv1.weight)
+        nn.init.kaiming_uniform_(self.resnet.fc.weight)
+
+    def forward(self, x, labels=None):
+        x = self.resnet(x)
+        if labels is not None:
+            loss = self.loss_function(x, labels)
+            return loss
+        else:
+            return x, None
+
 class AverageMeter(object):
     """Computes and stores the average and current value"""
     def __init__(self):
@@ -91,10 +177,10 @@ def simple_accuracy(preds, labels):
     return (preds == labels).mean()
 
 
-def save_model(args, model):
+def save_model(args, model, global_step):
     model_to_save = model.module if hasattr(model, 'module') else model
-    model_checkpoint = os.path.join(args.output_dir, "%s_checkpoint.pth" % args.name)
-    torch.save({"state_dict": model_to_save.state_dict()}, model_checkpoint)
+    model_checkpoint = os.path.join(args.output_dir, f"{args.name}_checkpoint_{global_step}.bin")
+    torch.save(model_to_save.state_dict(), model_checkpoint)
     logger.info("Saved model checkpoint to [DIR: %s]", args.output_dir)
 
 
@@ -103,7 +189,8 @@ def setup(args):
     config = CONFIGS[args.model_type]
     config.input_feature_dim = args.input_feature_dim
     config.ash_per = args.ash_per
-    model = MPLNet()
+    # model = MLP(args.input_feature_dim, [200, 100], args.ordinal_class_num)
+    model = ResNetRegression(args.input_feature_dim, args.ordinal_class_num)
     # model.load_from(np.load(args.pretrained_dir), requires_grad = args.encoder_weight_train)
     # model.load_state_dict(torch.from_numpy(np.load(args.pretrained_dir)))
     model.to(args.device)
@@ -132,7 +219,7 @@ def write_one_results(path, json_data):
     with open(path, "w") as outfile:
         json.dump(json_data, outfile)        
 
-def valid(args, model, writer, test_loader, global_step):
+def valid(args, model, writer, test_loader, test_datasets, global_step):
     # Validation!
     eval_losses = AverageMeter()
 
@@ -141,22 +228,22 @@ def valid(args, model, writer, test_loader, global_step):
     logger.info("  Batch size = %d", args.eval_batch_size)
 
     model.eval()
-    all_preds = []
+    image_preds = []
     epoch_iterator = tqdm(test_loader,
                           desc="Validating... (loss=X.X)",
                           bar_format="{l_bar}{r_bar}",
                           dynamic_ncols=True,
                           disable=args.local_rank not in [-1, 0])
-    loss_fct = torch.nn.MSELoss(reduction='mean')
+    loss_fct = FocalLoss()
+    conv_values = test_datasets.conv_values.to(args.device)
     for step, batch in enumerate(epoch_iterator):
         batch = tuple(t.to(args.device) for t in batch)
         x, y = batch
         with torch.no_grad():
-            logits = model(x)[0]
+            image_logits = model(x)[0]
 
-            eval_loss = loss_fct(logits, y)
-            eval_losses.update(eval_loss.item())
-            all_preds.extend(logits.tolist())
+            eval_loss = loss_fct(image_logits, y)
+            image_preds.extend(tensor_ordinal_to_float(image_logits, conv_values).tolist())
 
         epoch_iterator.set_description("Validating... (loss=%2.5f)" % eval_losses.val)
 
@@ -166,7 +253,7 @@ def valid(args, model, writer, test_loader, global_step):
     logger.info("Valid Loss: %2.5f" % eval_losses.avg)
 
     writer.add_scalar("test/loss", scalar_value=eval_losses.avg, global_step=global_step)
-    return eval_losses.avg, all_preds
+    return eval_losses.avg, image_preds
 
 
 def train(args, model):
@@ -180,7 +267,7 @@ def train(args, model):
 
     # Prepare dataset
     # train_loader, test_loader = get_loader_at(args)
-    train_loader, test_loader = get_loader_feature(args)
+    train_loader, test_loader, train_datasets, test_datasets = get_loader_feature(args)
 
     # Prepare optimizer and scheduler
     optimizer = torch.optim.SGD(model.parameters(),
@@ -193,17 +280,8 @@ def train(args, model):
     else:
         scheduler = WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=t_total)
 
-    if args.fp16:
-        model, optimizer = amp.initialize(models=model,
-                                          optimizers=optimizer,
-                                          opt_level=args.fp16_opt_level)
-        amp._amp_state.loss_scalers[0]._loss_scale = 2**20
-
-    # Distributed training
-    if args.local_rank != -1:
-        model = DDP(model, message_size=250000000, gradient_predivide_factor=get_world_size())
-    
-    wandb.watch(model, log="all")
+    if args.enable_wandb:
+        wandb.watch(model, log="all")
 
     # Train!
     logger.info("***** Running training *****")
@@ -229,23 +307,19 @@ def train(args, model):
         for step, batch in enumerate(epoch_iterator):
             batch = tuple(t.to(args.device) for t in batch)
             x, y = batch
+            if y.shape[0] == 1:
+                continue
             loss = model(x, y)
 
             if args.gradient_accumulation_steps > 1:
                 loss = loss / args.gradient_accumulation_steps
-            if args.fp16:
-                with amp.scale_loss(loss, optimizer) as scaled_loss:
-                    scaled_loss.backward()
-            else:
-                loss.backward()
+
+            loss.backward()
             
 
             if (step + 1) % args.gradient_accumulation_steps == 0:
                 losses.update(loss.item()*args.gradient_accumulation_steps)
-                if args.fp16:
-                    torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), args.max_grad_norm)
-                else:
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
                 scheduler.step()
                 optimizer.step()
                 optimizer.zero_grad()
@@ -258,19 +332,18 @@ def train(args, model):
                     writer.add_scalar("train/loss", scalar_value=losses.val, global_step=global_step)
                     writer.add_scalar("train/lr", scalar_value=scheduler.get_lr()[0], global_step=global_step)
                 if global_step % args.eval_every == 0 and args.local_rank in [-1, 0]:
-                    accuracy, all_preds = valid(args, model, writer, test_loader, global_step)
-                    if best_acc > accuracy:
-                        save_model(args, model)
-                        best_acc = accuracy
-                        path = os.path.join(args.output_dir, "%s_losses.json" % args.name)
-                        json_objects = {"losses": all_preds}
-                        write_one_results(path, json_objects)
+                    accuracy, all_preds = valid(args, model, writer, test_loader, test_datasets, global_step)
+                    save_model(args, model, global_step)
+                    path = os.path.join(args.output_dir, f"{args.name}_losses_{global_step}.json")
+                    json_objects = {"losses": all_preds}
+                    write_one_results(path, json_objects)
                     model.train()
 
                 if global_step % t_total == 0:
                     break
-                wandb.log({"loss":loss, "val_loss": accuracy}, step=global_step)
-                wandb.log(model.state_dict())
+                if args.enable_wandb:
+                    wandb.log({"loss":loss, "val_loss": accuracy}, step=global_step)
+                    wandb.log(model.state_dict())
         losses.reset()
         if global_step % t_total == 0:
             break
@@ -343,6 +416,12 @@ def main():
                              "Positive power of 2: static loss scaling value.\n")
     parser.add_argument('--encoder_weight_train', action='store_true',
                         help="Whether to use 16-bit float precision instead of 32-bit")
+    parser.add_argument("--ordinal_class_num", default=50, type=int,
+                        help="Number of ordinal class, also need to change the value in data_utils_feature.")
+    parser.add_argument('--model_data_type', type=str, default="UNet_VOC",
+                        help="mode X dataset type, current model type: PSPNet, UNet, DeepLab, FCN, SEGNet, dataset: VOC, CITY, COCO, ADE20k")
+    parser.add_argument('--enable_wandb', action='store_true',
+                        help="Whether to enable wandb")
     args = parser.parse_args()
 
     # Setup CUDA, GPU & distributed training
@@ -368,23 +447,24 @@ def main():
     set_seed(args)
     
     # start a new wandb run to track this script
-    wandb.init(
-        # set the wandb project where this run will be logged
-        project="Bosch_active_testing",
-        config=args,
-        entity="susanbao",
-        notes=socket.gethostname(),
-        name=args.name,
-        job_type="training"
-    )
+    if args.enable_wandb:
+        wandb.init(
+            # set the wandb project where this run will be logged
+            project="Bosch_active_testing",
+            config=args,
+            entity="susanbao",
+            notes=socket.gethostname(),
+            name=args.name,
+            job_type="training"
+        )
 
     # Model & Tokenizer Setup
     args, model = setup(args)
 
     # Training
     train(args, model)
-    
-    wandb.finish()
+    if args.enable_wandb:
+        wandb.finish()
 
 
 if __name__ == "__main__":
