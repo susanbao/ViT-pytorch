@@ -16,7 +16,10 @@ logger = logging.getLogger(__name__)
 # region
 CONV_THR_DICT = {"DETR_COCO": [35, 37],
                 "DFDETR_COCO": [8, 9],
-                "DINO_COCO": [8, 8.5]}
+                "DINO_COCO": [8, 8.5],
+                "DETR_CITY": [9.8, 10.4],
+                "DEDETR_CITY": [6.6, 7.3],
+                "DELADETR_CITY": [7,8, 9.1]}
 
 
 def np_read_with_tensor_output(file):
