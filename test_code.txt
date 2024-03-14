@@ -32,6 +32,8 @@ CUDA_VISIBLE_DEVICES=0 python3 train_mlp.py --name ViT_DETR_COCO_image_resnet --
 
 CUDA_VISIBLE_DEVICES=0 python3 train_mlp.py --name ViT_DETR_COCO_image_MLP --data_dir ../mmdetection_at/pro_data/DETR_COCO/ --model_data_type DETR_COCO --gradient_accumulation_steps 4   --train_batch_size 16 --eval_batch_size 16 --input_feature_dim 256 --num_steps 100000 --eval_every 10000 --warmup_steps 10000 --learning_rate 0.03 --max_grad_norm 10 --ordinal_class_num 50 --enable_wandb >logs/ViT_DETR_COCO_image_MLP.logs 2>logs/ViT_DETR_COCO_image_MLP.err&
 
+CUDA_VISIBLE_DEVICES=0 python3 train_at.py --name ViT_YOLOX_COCO_all --data_dir ../mmdetection_at/pro_data/YOLOX_COCO/ --model_data_type YOLOX_COCO --gradient_accumulation_steps 4 --model_type ViT-B_32 --pretrained_dir ../ViT_ckpts/ViT-B_32.npz --loss_range all --train_batch_size 16 --eval_batch_size 16 --input_feature_dim 85 --num_steps 100000 --eval_every 10000 --warmup_steps 10000 --learning_rate 0.03 --enable_backbone_grad --max_grad_norm 10 --ordinal_class_num 50 --patch_nums 196 --enable_wandb >logs/ViT_YOLOX_COCO_all.logs 2>logs/ViT_YOLOX_COCO_all.err&
+
 
 CityScapes:
 # {"DETR_CITY": 0.98, "DEDETR_CITY": 0.98, "DELADETR_CITY": 0.99}

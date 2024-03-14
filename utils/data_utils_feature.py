@@ -19,7 +19,8 @@ CONV_THR_DICT = {"DETR_COCO": [35, 37],
                 "DINO_COCO": [8, 8.5],
                 "DETR_CITY": [9.8, 10.4],
                 "DEDETR_CITY": [6.6, 7.3],
-                "DELADETR_CITY": [7,8, 9.1]}
+                "DELADETR_CITY": [7,8, 9.1],
+                "YOLOX_COCO": [13.6, 23.4]}
 
 
 def np_read_with_tensor_output(file):
